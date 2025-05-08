@@ -79,23 +79,47 @@
 #include <filament/MaterialInstance.h>
 #include <filament/VertexBuffer.h>
 
-#include "generated/resources/resources.h"
-#include "generated/resources/monkey.h"
+#include <filameshio/MeshReader.h>
+#include <utils/Path.h>
+#include <fcntl.h>
+#if !defined(WIN32)
+#    include <unistd.h>
+#else
+#    include <io.h>
+#endif
 
 using namespace Diligent;
- 
- void InitFilament()
+static size_t fileSize(int fd) {
+	size_t filesize;
+	filesize = (size_t)lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+	return filesize;
+}
+static void InitFilament()
  {
      using namespace filament;
      Engine* engine{ nullptr };
-	 auto material = Material::Builder().package(RESOURCES_AIDEFAULTMAT_DATA, RESOURCES_AIDEFAULTMAT_SIZE).build(*engine);
+
+	 int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
+	 size_t size = fileSize(fd);
+	 char* data = (char*)malloc(size);
+	 read(fd, data, size);
+	 if (data) {
+		 free(data);
+	 }
+	 close(fd);
+
+	 auto material = Material::Builder().package(data, size).build(*engine);
 	 auto mi = material->createInstance();
 	 mi->setParameter("baseColor", RgbType::LINEAR, math::float3{ 0.8 });
 	 mi->setParameter("metallic", 1.0f);
 	 mi->setParameter("roughness", 0.4f);
 	 mi->setParameter("reflectance", 0.5f);
 
-     auto mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, MONKEY_SUZANNE_DATA, nullptr, nullptr, mi);
+     filamesh::MeshReader::MaterialRegistry reg;
+	 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
+     //auto mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, MONKEY_SUZANNE_DATA, nullptr, nullptr, mi);
+     auto mesh = filamesh::MeshReader::loadMeshFromFile(engine, utils::Path{"D:\\filament-1.59.4\\assets\\models\\monkey\\monkey.filamesh"}, reg);
  }
 
  // For this tutorial, we will use simple vertex shader
