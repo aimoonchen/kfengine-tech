@@ -39,6 +39,35 @@ backend::FeatureLevel Engine::getActiveFeatureLevel() const noexcept {
 	return downcast(this)->getActiveFeatureLevel();
 }
 
+HwVertexBufferInfoFactory::HwVertexBufferInfoFactory() {}
+HwVertexBufferInfoFactory::~HwVertexBufferInfoFactory() noexcept {}
+HwDescriptorSetLayoutFactory::HwDescriptorSetLayoutFactory() {}
+HwDescriptorSetLayoutFactory::~HwDescriptorSetLayoutFactory() noexcept {}
+
+FEngine::FEngine() {
+	FMaterial::DefaultMaterialBuilder defaultMaterialBuilder;
+// 	switch (mConfig.stereoscopicType) {
+// 	case StereoscopicType::NONE:
+// 	case StereoscopicType::INSTANCED:
+// 		defaultMaterialBuilder.package(
+// 			MATERIALS_DEFAULTMATERIAL_DATA, MATERIALS_DEFAULTMATERIAL_SIZE);
+// 		break;
+// 	case StereoscopicType::MULTIVIEW:
+// #ifdef FILAMENT_ENABLE_MULTIVIEW
+// 		defaultMaterialBuilder.package(
+// 			MATERIALS_DEFAULTMATERIAL_MULTIVIEW_DATA, MATERIALS_DEFAULTMATERIAL_MULTIVIEW_SIZE);
+// #else
+// 		assert_invariant(false);
+// #endif
+// 		break;
+// 	}
+	mDefaultMaterial = downcast(defaultMaterialBuilder.build(*this));
+}
+Engine* FEngine::create() {
+	FEngine* instance = new FEngine();
+	return instance;
+}
+
 template<typename T, typename ... ARGS>
 T* FEngine::create(ResourceList<T>& list,
 	typename T::Builder const& builder, ARGS&& ... args) noexcept {

@@ -115,7 +115,7 @@ private:
 
 
     // Arena where the set memory is allocated
-    PoolAllocatorArena mArena;
+    //PoolAllocatorArena mArena;
 
     // The special Bimap
 //     Bimap<Key, Value, KeyHasher, ValueHasher,

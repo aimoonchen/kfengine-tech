@@ -78,9 +78,9 @@
 #include <filament/Material.h>
 #include <filament/MaterialInstance.h>
 #include <filament/VertexBuffer.h>
+#include <details/Engine.h>
 
 #include <filameshio/MeshReader.h>
-#include <utils/Path.h>
 #include <fcntl.h>
 #if !defined(WIN32)
 #    include <unistd.h>
@@ -98,16 +98,13 @@ static size_t fileSize(int fd) {
 static void InitFilament()
  {
      using namespace filament;
-     Engine* engine{ nullptr };
+//     Engine::Config engineConfig = {};
+     Engine* engine = FEngine::create();
 
 	 int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
 	 size_t size = fileSize(fd);
 	 char* data = (char*)malloc(size);
 	 read(fd, data, size);
-	 if (data) {
-		 free(data);
-	 }
-	 close(fd);
 
 	 auto material = Material::Builder().package(data, size).build(*engine);
 	 auto mi = material->createInstance();
@@ -115,11 +112,28 @@ static void InitFilament()
 	 mi->setParameter("metallic", 1.0f);
 	 mi->setParameter("roughness", 0.4f);
 	 mi->setParameter("reflectance", 0.5f);
-
-     filamesh::MeshReader::MaterialRegistry reg;
-	 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
+     free(data);
+     close(fd);
      //auto mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, MONKEY_SUZANNE_DATA, nullptr, nullptr, mi);
-     auto mesh = filamesh::MeshReader::loadMeshFromFile(engine, utils::Path{"D:\\filament-1.59.4\\assets\\models\\monkey\\monkey.filamesh"}, reg);
+	 fd = open("D:\\filament-1.59.4\\assets\\models\\monkey\\monkey.filamesh", O_RDONLY);
+	 size = fileSize(fd);
+	 data = (char*)malloc(size);
+	 read(fd, data, size);
+     static const char MAGICID[]{ 'F', 'I', 'L', 'A', 'M', 'E', 'S', 'H' };
+     filamesh::MeshReader::Mesh mesh;
+	 if (data) {
+		 char* p = data;
+		 char* magic = p;
+		 p += sizeof(MAGICID);
+
+		 if (!strncmp(MAGICID, magic, 8)) {
+			 filamesh::MeshReader::MaterialRegistry reg;
+			 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
+			 mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, data, nullptr, nullptr, reg);
+		 }
+		 free(data);
+	 }
+	 close(fd);
  }
 
  // For this tutorial, we will use simple vertex shader
@@ -355,6 +369,7 @@ static void InitFilament()
  
      void CreateResources()
      {
+         InitFilament();
          // Pipeline state object encompasses configuration of all GPU stages
  
          GraphicsPipelineStateCreateInfo PSOCreateInfo;

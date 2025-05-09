@@ -140,7 +140,7 @@ public:
     using duration = clock::duration;
 
 public:
-    static Engine* create(Builder const& builder);
+    static Engine* create();
 
 #if UTILS_HAS_THREADING
     static void create(Builder const& builder, utils::Invocable<void(void* token)>&& callback);
@@ -267,7 +267,7 @@ public:
     utils::FixedCapacityVector<backend::ShaderLanguage> getShaderLanguage() const noexcept {
         switch (mBackend) {
             default:
-                return { getDriver().getShaderLanguage() };
+                return { backend::ShaderLanguage::SPIRV/*getDriver().getShaderLanguage()*/ };
             case Backend::METAL:
                 const auto& lang = mConfig.preferredShaderLanguage;
                 if (lang == Config::ShaderLanguage::MSL) {
@@ -443,12 +443,12 @@ public:
 
     bool execute();
 
-    utils::JobSystem& getJobSystem() const noexcept {
-        // JobSystem is thread-safe, and it's always okay to return a non-const one,
-        // it's conceptually the same as if we were holding a non-const reference, as opposed
-        // to by-value class attribute.
-        return const_cast<utils::JobSystem&>(mJobSystem);
-    }
+//     utils::JobSystem& getJobSystem() const noexcept {
+//         // JobSystem is thread-safe, and it's always okay to return a non-const one,
+//         // it's conceptually the same as if we were holding a non-const reference, as opposed
+//         // to by-value class attribute.
+//         return const_cast<utils::JobSystem&>(mJobSystem);
+//     }
 
     std::default_random_engine& getRandomEngine() {
         return mRandomEngine;
@@ -519,7 +519,7 @@ public:
     backend::Driver& getDriver() const noexcept { return *mDriver; }
 
 private:
-    explicit FEngine(Builder const& builder);
+    explicit FEngine();
     void init();
     void shutdown();
 
@@ -544,8 +544,8 @@ private:
     backend::Driver* mDriver = nullptr;
     backend::Handle<backend::HwRenderTarget> mDefaultRenderTarget;
 
-    Backend mBackend;
-    FeatureLevel mActiveFeatureLevel = FeatureLevel::FEATURE_LEVEL_1;
+    Backend mBackend = Backend::VULKAN;
+    FeatureLevel mActiveFeatureLevel = FeatureLevel::FEATURE_LEVEL_2;
     Platform* mPlatform = nullptr;
     bool mOwnPlatform = false;
     bool mAutomaticInstancingEnabled = false;
@@ -608,7 +608,7 @@ private:
 //     RootArenaScope::Arena mPerRenderPassArena;
     HeapAllocatorArena mHeapAllocator;
 
-    utils::JobSystem mJobSystem;
+//    utils::JobSystem mJobSystem;
     static uint32_t getJobSystemThreadPoolSize(Config const& config) noexcept;
 
     std::default_random_engine mRandomEngine;
