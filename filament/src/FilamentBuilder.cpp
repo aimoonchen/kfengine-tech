@@ -22,6 +22,13 @@
 #include <private/backend/Driver.h>
 #include <algorithm>
 
+#include <fcntl.h>
+#if !defined(WIN32)
+#    include <unistd.h>
+#else
+#    include <io.h>
+#endif
+
 namespace filament {
 
 void builderMakeName(utils::CString& outName, const char* name, size_t const len) noexcept {
@@ -44,23 +51,37 @@ HwVertexBufferInfoFactory::~HwVertexBufferInfoFactory() noexcept {}
 HwDescriptorSetLayoutFactory::HwDescriptorSetLayoutFactory() {}
 HwDescriptorSetLayoutFactory::~HwDescriptorSetLayoutFactory() noexcept {}
 
+static size_t fileSize(int fd) {
+	size_t filesize;
+	filesize = (size_t)lseek(fd, 0, SEEK_END);
+	lseek(fd, 0, SEEK_SET);
+	return filesize;
+}
+
 FEngine::FEngine() {
+	int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
+	size_t size = fileSize(fd);
+	char* data = (char*)malloc(size);
+	read(fd, data, size);
+
 	FMaterial::DefaultMaterialBuilder defaultMaterialBuilder;
-// 	switch (mConfig.stereoscopicType) {
-// 	case StereoscopicType::NONE:
-// 	case StereoscopicType::INSTANCED:
-// 		defaultMaterialBuilder.package(
-// 			MATERIALS_DEFAULTMATERIAL_DATA, MATERIALS_DEFAULTMATERIAL_SIZE);
-// 		break;
-// 	case StereoscopicType::MULTIVIEW:
-// #ifdef FILAMENT_ENABLE_MULTIVIEW
-// 		defaultMaterialBuilder.package(
-// 			MATERIALS_DEFAULTMATERIAL_MULTIVIEW_DATA, MATERIALS_DEFAULTMATERIAL_MULTIVIEW_SIZE);
-// #else
-// 		assert_invariant(false);
-// #endif
-// 		break;
-// 	}
+	switch (mConfig.stereoscopicType) {
+	case StereoscopicType::NONE:
+	case StereoscopicType::INSTANCED:
+		defaultMaterialBuilder.package(
+			data, size
+			//MATERIALS_DEFAULTMATERIAL_DATA, MATERIALS_DEFAULTMATERIAL_SIZE
+		);
+		break;
+	case StereoscopicType::MULTIVIEW:
+#ifdef FILAMENT_ENABLE_MULTIVIEW
+		defaultMaterialBuilder.package(
+			MATERIALS_DEFAULTMATERIAL_MULTIVIEW_DATA, MATERIALS_DEFAULTMATERIAL_MULTIVIEW_SIZE);
+#else
+		assert_invariant(false);
+#endif
+		break;
+	}
 	mDefaultMaterial = downcast(defaultMaterialBuilder.build(*this));
 }
 Engine* FEngine::create() {
@@ -92,6 +113,27 @@ FIndexBuffer* FEngine::createIndexBuffer(const IndexBuffer::Builder& builder) no
 FMaterial* FEngine::createMaterial(const Material::Builder& builder,
 	std::unique_ptr<MaterialParser> materialParser) noexcept {
 	return create(mMaterials, builder, std::move(materialParser));
+}
+
+
+FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
+	const FMaterialInstance* other, const char* name) noexcept {
+	FMaterialInstance* p = mHeapAllocator.make<FMaterialInstance>(*this, other, name);
+	if (UTILS_LIKELY(p)) {
+		auto const pos = mMaterialInstances.emplace(material, "MaterialInstance");
+		pos.first->second.insert(p);
+	}
+	return p;
+}
+
+FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
+	const char* name) noexcept {
+	FMaterialInstance* p = mHeapAllocator.make<FMaterialInstance>(*this, material, name);
+	if (UTILS_LIKELY(p)) {
+		auto pos = mMaterialInstances.emplace(material, "MaterialInstance");
+		pos.first->second.insert(p);
+	}
+	return p;
 }
 
 size_t backend::Driver::getElementTypeSize(backend::ElementType type) noexcept {
