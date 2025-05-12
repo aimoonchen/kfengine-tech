@@ -67,9 +67,13 @@
  #include "Graphics/GraphicsEngine/interface/RenderDevice.h"
  #include "Graphics/GraphicsEngine/interface/DeviceContext.h"
  #include "Graphics/GraphicsEngine/interface/SwapChain.h"
- 
+#include "Graphics/GraphicsEngine/interface/GraphicsTypes.h"
+#include "Graphics/GraphicsTools/interface/MapHelper.hpp"
+#include "Graphics/GraphicsTools/interface/GraphicsUtilities.h"
+
  #include "Common/interface/RefCntAutoPtr.hpp"
- 
+#include "Common/interface/BasicMath.hpp"
+
 #include <filameshio/MeshReader.h>
 #include <filameshio/filamesh.h>
 
@@ -95,46 +99,6 @@ static size_t fileSize(int fd) {
 	lseek(fd, 0, SEEK_SET);
 	return filesize;
 }
-static void InitFilament()
- {
-     using namespace filament;
-//     Engine::Config engineConfig = {};
-     Engine* engine = FEngine::create();
-
-	 int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
-	 size_t size = fileSize(fd);
-	 char* data = (char*)malloc(size);
-	 read(fd, data, size);
-
-	 auto material = Material::Builder().package(data, size).build(*engine);
-	 auto mi = material->createInstance();
-	 mi->setParameter("baseColor", RgbType::LINEAR, math::float3{ 0.8 });
-	 mi->setParameter("metallic", 1.0f);
-	 mi->setParameter("roughness", 0.4f);
-	 mi->setParameter("reflectance", 0.5f);
-     free(data);
-     close(fd);
-     //auto mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, MONKEY_SUZANNE_DATA, nullptr, nullptr, mi);
-	 fd = open("D:\\filament-1.59.4\\assets\\models\\monkey\\monkey.filamesh", O_RDONLY);
-	 size = fileSize(fd);
-	 data = (char*)malloc(size);
-	 read(fd, data, size);
-     static const char MAGICID[]{ 'F', 'I', 'L', 'A', 'M', 'E', 'S', 'H' };
-     filamesh::MeshReader::Mesh mesh;
-	 if (data) {
-		 char* p = data;
-		 char* magic = p;
-		 p += sizeof(MAGICID);
-
-		 if (!strncmp(MAGICID, magic, 8)) {
-			 filamesh::MeshReader::MaterialRegistry reg;
-			 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
-			 mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, data, nullptr, nullptr, reg);
-		 }
-		 free(data);
-	 }
-	 close(fd);
- }
 
  // For this tutorial, we will use simple vertex shader
  // that creates a procedural triangle
@@ -143,48 +107,63 @@ static void InitFilament()
  // It will convert HLSL to GLSL in OpenGL mode, while Vulkan backend will compile it directly to SPIRV.
  
  static const char* VSSource = R"(
- struct PSInput 
- { 
-     float4 Pos   : SV_POSITION; 
-     float3 Color : COLOR; 
- };
- 
- void main(in  uint    VertId : SV_VertexID,
-           out PSInput PSIn) 
- {
-     float4 Pos[3];
-     Pos[0] = float4(-0.5, -0.5, 0.0, 1.0);
-     Pos[1] = float4( 0.0, +0.5, 0.0, 1.0);
-     Pos[2] = float4(+0.5, -0.5, 0.0, 1.0);
- 
-     float3 Col[3];
-     Col[0] = float3(1.0, 0.0, 0.0); // red
-     Col[1] = float3(0.0, 1.0, 0.0); // green
-     Col[2] = float3(0.0, 0.0, 1.0); // blue
- 
-     PSIn.Pos   = Pos[VertId];
-     PSIn.Color = Col[VertId];
- }
+cbuffer Constants
+{
+    float4x4 g_WorldViewProj;
+};
+
+// Vertex shader takes two inputs: vertex position and uv coordinates.
+// By convention, Diligent Engine expects vertex shader inputs to be 
+// labeled 'ATTRIBn', where n is the attribute number.
+struct VSInput
+{
+    float3 Pos : ATTRIB0;
+    float2 UV  : ATTRIB1;
+};
+
+struct PSInput 
+{ 
+    float4 Pos : SV_POSITION; 
+    float2 UV  : TEX_COORD; 
+};
+
+// Note that if separate shader objects are not supported (this is only the case for old GLES3.0 devices), vertex
+// shader output variable name must match exactly the name of the pixel shader input variable.
+// If the variable has structure type (like in this example), the structure declarations must also be identical.
+void main(in  VSInput VSIn,
+          out PSInput PSIn) 
+{
+    PSIn.Pos = mul( float4(VSIn.Pos,1.0), g_WorldViewProj);
+    PSIn.UV  = VSIn.UV;
+}
  )";
  
  // Pixel shader simply outputs interpolated vertex color
  static const char* PSSource = R"(
- struct PSInput 
- { 
-     float4 Pos   : SV_POSITION; 
-     float3 Color : COLOR; 
- };
- 
- struct PSOutput
- { 
-     float4 Color : SV_TARGET; 
- };
- 
- void main(in  PSInput  PSIn,
-           out PSOutput PSOut)
- {
-     PSOut.Color = float4(PSIn.Color.rgb, 1.0);
- }
+Texture2D    g_Texture;
+SamplerState g_Texture_sampler; // By convention, texture samplers must use the '_sampler' suffix
+
+struct PSInput
+{
+    float4 Pos : SV_POSITION;
+    float2 UV  : TEX_COORD;
+};
+
+struct PSOutput
+{
+    float4 Color : SV_TARGET;
+};
+
+void main(in  PSInput  PSIn,
+          out PSOutput PSOut)
+{
+    float4 Color = g_Texture.Sample(g_Texture_sampler, PSIn.UV);
+#if CONVERT_PS_OUTPUT_TO_GAMMA
+    // Use fast approximation for gamma correction.
+    Color.rgb = pow(Color.rgb, float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));
+#endif
+    PSOut.Color = Color;
+}
  )";
  
  
@@ -365,11 +344,376 @@ static void InitFilament()
          }
          return true;
      }
- 
- 
+
+	 void CreatePipelineState()
+	 {
+		 // Pipeline state object encompasses configuration of all GPU stages
+
+		 GraphicsPipelineStateCreateInfo PSOCreateInfo;
+
+		 // Pipeline state name is used by the engine to report issues.
+		 // It is always a good idea to give objects descriptive names.
+		 PSOCreateInfo.PSODesc.Name = "Cube PSO";
+
+		 // This is a graphics pipeline
+		 PSOCreateInfo.PSODesc.PipelineType = PIPELINE_TYPE_GRAPHICS;
+
+		 // clang-format off
+		 // This tutorial will render to a single render target
+		 PSOCreateInfo.GraphicsPipeline.NumRenderTargets = 1;
+		 // Set render target format which is the format of the swap chain's color buffer
+		 PSOCreateInfo.GraphicsPipeline.RTVFormats[0] = m_pSwapChain->GetDesc().ColorBufferFormat;
+		 // Set depth buffer format which is the format of the swap chain's back buffer
+		 PSOCreateInfo.GraphicsPipeline.DSVFormat = m_pSwapChain->GetDesc().DepthBufferFormat;
+		 // Primitive topology defines what kind of primitives will be rendered by this pipeline state
+		 PSOCreateInfo.GraphicsPipeline.PrimitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+		 // Cull back faces
+		 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_BACK;
+		 // Enable depth testing
+		 PSOCreateInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = True;
+		 // clang-format on
+
+		 ShaderCreateInfo ShaderCI;
+		 // Tell the system that the shader source code is in HLSL.
+		 // For OpenGL, the engine will convert this into GLSL under the hood.
+		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_HLSL;
+
+		 // OpenGL backend requires emulated combined HLSL texture samplers (g_Texture + g_Texture_sampler combination)
+		 ShaderCI.Desc.UseCombinedTextureSamplers = true;
+
+		 // Pack matrices in row-major order
+		 ShaderCI.CompileFlags = SHADER_COMPILE_FLAG_PACK_MATRIX_ROW_MAJOR;
+
+		 // Presentation engine always expects input in gamma space. Normally, pixel shader output is
+		 // converted from linear to gamma space by the GPU. However, some platforms (e.g. Android in GLES mode,
+		 // or Emscripten in WebGL mode) do not support gamma-correction. In this case the application
+		 // has to do the conversion manually.
+		 ShaderMacro Macros[] = { {"CONVERT_PS_OUTPUT_TO_GAMMA", m_ConvertPSOutputToGamma ? "1" : "0"} };
+		 ShaderCI.Macros = { Macros, _countof(Macros) };
+
+		 // Create a shader source stream factory to load shaders from files.
+// 		 RefCntAutoPtr<IShaderSourceInputStreamFactory> pShaderSourceFactory;
+// 		 m_pEngineFactory->CreateDefaultShaderSourceStreamFactory(nullptr, &pShaderSourceFactory);
+// 		 ShaderCI.pShaderSourceStreamFactory = pShaderSourceFactory;
+		 // Create a vertex shader
+		 RefCntAutoPtr<IShader> pVS;
+		 {
+			 ShaderCI.Desc.ShaderType = SHADER_TYPE_VERTEX;
+			 ShaderCI.EntryPoint = "main";
+			 ShaderCI.Desc.Name = "Cube VS";
+			 ShaderCI.Source = VSSource;
+			 //ShaderCI.FilePath = "cube.vsh";
+			 m_pDevice->CreateShader(ShaderCI, &pVS);
+			 // Create dynamic uniform buffer that will store our transformation matrix
+			 // Dynamic buffers can be frequently updated by the CPU
+			 BufferDesc CBDesc;
+			 CBDesc.Name = "VS constants CB";
+			 CBDesc.Size = sizeof(float4x4);
+			 CBDesc.Usage = USAGE_DYNAMIC;
+			 CBDesc.BindFlags = BIND_UNIFORM_BUFFER;
+			 CBDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
+			 m_pDevice->CreateBuffer(CBDesc, nullptr, &m_VSConstants);
+		 }
+
+		 // Create a pixel shader
+		 RefCntAutoPtr<IShader> pPS;
+		 {
+			 ShaderCI.Desc.ShaderType = SHADER_TYPE_PIXEL;
+			 ShaderCI.EntryPoint = "main";
+			 ShaderCI.Desc.Name = "Cube PS";
+			 ShaderCI.Source = PSSource;
+			 //ShaderCI.FilePath = "cube.psh";
+			 m_pDevice->CreateShader(ShaderCI, &pPS);
+		 }
+
+		 // clang-format off
+		 // Define vertex shader input layout
+		 LayoutElement LayoutElems[] =
+		 {
+			 // Attribute 0 - vertex position
+			 LayoutElement{0, 0, 3, VT_FLOAT32, False},
+			 // Attribute 1 - texture coordinates
+			 LayoutElement{1, 0, 2, VT_FLOAT32, False}
+		 };
+		 // clang-format on
+
+		 PSOCreateInfo.pVS = pVS;
+		 PSOCreateInfo.pPS = pPS;
+
+		 PSOCreateInfo.GraphicsPipeline.InputLayout.LayoutElements = LayoutElems;
+		 PSOCreateInfo.GraphicsPipeline.InputLayout.NumElements = _countof(LayoutElems);
+
+		 // Define variable type that will be used by default
+		 PSOCreateInfo.PSODesc.ResourceLayout.DefaultVariableType = SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+
+		 // clang-format off
+		 // Shader variables should typically be mutable, which means they are expected
+		 // to change on a per-instance basis
+		 ShaderResourceVariableDesc Vars[] =
+		 {
+			 {SHADER_TYPE_PIXEL, "g_Texture", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE}
+		 };
+		 // clang-format on
+		 PSOCreateInfo.PSODesc.ResourceLayout.Variables = Vars;
+		 PSOCreateInfo.PSODesc.ResourceLayout.NumVariables = _countof(Vars);
+
+		 // clang-format off
+		 // Define immutable sampler for g_Texture. Immutable samplers should be used whenever possible
+		 SamplerDesc SamLinearClampDesc
+		 {
+			 FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR,
+			 TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP
+		 };
+		 ImmutableSamplerDesc ImtblSamplers[] =
+		 {
+			 {SHADER_TYPE_PIXEL, "g_Texture", SamLinearClampDesc}
+		 };
+		 // clang-format on
+		 PSOCreateInfo.PSODesc.ResourceLayout.ImmutableSamplers = ImtblSamplers;
+		 PSOCreateInfo.PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
+
+		 m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
+
+		 // Since we did not explicitly specify the type for 'Constants' variable, default
+		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables
+		 // never change and are bound directly through the pipeline state object.
+		 m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
+
+		 // Since we are using mutable variable, we must create a shader resource binding object
+		 // http://diligentgraphics.com/2016/03/23/resource-binding-model-in-diligent-engine-2-0/
+		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
+	 }
+
+	 void CreateVertexBuffer()
+	 {
+		 // Layout of this structure matches the one we defined in the pipeline state
+		 struct Vertex
+		 {
+			 float3 pos;
+			 float2 uv;
+		 };
+
+		 // Cube vertices
+
+		 //      (-1,+1,+1)________________(+1,+1,+1)
+		 //               /|              /|
+		 //              / |             / |
+		 //             /  |            /  |
+		 //            /   |           /   |
+		 //(-1,-1,+1) /____|__________/(+1,-1,+1)
+		 //           |    |__________|____|
+		 //           |   /(-1,+1,-1) |    /(+1,+1,-1)
+		 //           |  /            |   /
+		 //           | /             |  /
+		 //           |/              | /
+		 //           /_______________|/
+		 //        (-1,-1,-1)       (+1,-1,-1)
+		 //
+
+		 // This time we have to duplicate verices because texture coordinates cannot
+		 // be shared
+		 constexpr Vertex CubeVerts[] =
+		 {
+			 {float3{-1, -1, -1}, float2{0, 1}},
+			 {float3{-1, +1, -1}, float2{0, 0}},
+			 {float3{+1, +1, -1}, float2{1, 0}},
+			 {float3{+1, -1, -1}, float2{1, 1}},
+
+			 {float3{-1, -1, -1}, float2{0, 1}},
+			 {float3{-1, -1, +1}, float2{0, 0}},
+			 {float3{+1, -1, +1}, float2{1, 0}},
+			 {float3{+1, -1, -1}, float2{1, 1}},
+
+			 {float3{+1, -1, -1}, float2{0, 1}},
+			 {float3{+1, -1, +1}, float2{1, 1}},
+			 {float3{+1, +1, +1}, float2{1, 0}},
+			 {float3{+1, +1, -1}, float2{0, 0}},
+
+			 {float3{+1, +1, -1}, float2{0, 1}},
+			 {float3{+1, +1, +1}, float2{0, 0}},
+			 {float3{-1, +1, +1}, float2{1, 0}},
+			 {float3{-1, +1, -1}, float2{1, 1}},
+
+			 {float3{-1, +1, -1}, float2{1, 0}},
+			 {float3{-1, +1, +1}, float2{0, 0}},
+			 {float3{-1, -1, +1}, float2{0, 1}},
+			 {float3{-1, -1, -1}, float2{1, 1}},
+
+			 {float3{-1, -1, +1}, float2{1, 1}},
+			 {float3{+1, -1, +1}, float2{0, 1}},
+			 {float3{+1, +1, +1}, float2{0, 0}},
+			 {float3{-1, +1, +1}, float2{1, 0}},
+		 };
+
+		 BufferDesc VertBuffDesc;
+		 VertBuffDesc.Name = "Cube vertex buffer";
+		 VertBuffDesc.Usage = USAGE_IMMUTABLE;
+		 VertBuffDesc.BindFlags = BIND_VERTEX_BUFFER;
+		 VertBuffDesc.Size = sizeof(CubeVerts);
+		 BufferData VBData;
+		 VBData.pData = CubeVerts;
+		 VBData.DataSize = sizeof(CubeVerts);
+		 m_pDevice->CreateBuffer(VertBuffDesc, &VBData, &m_CubeVertexBuffer);
+	 }
+
+	 void CreateIndexBuffer()
+	 {
+		 // clang-format off
+		 constexpr Uint32 Indices[] =
+		 {
+			 2,0,1,    2,3,0,
+			 4,6,5,    4,7,6,
+			 8,10,9,   8,11,10,
+			 12,14,13, 12,15,14,
+			 16,18,17, 16,19,18,
+			 20,21,22, 20,22,23
+		 };
+		 // clang-format on
+
+		 BufferDesc IndBuffDesc;
+		 IndBuffDesc.Name = "Cube index buffer";
+		 IndBuffDesc.Usage = USAGE_IMMUTABLE;
+		 IndBuffDesc.BindFlags = BIND_INDEX_BUFFER;
+		 IndBuffDesc.Size = sizeof(Indices);
+		 BufferData IBData;
+		 IBData.pData = Indices;
+		 IBData.DataSize = sizeof(Indices);
+		 m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
+	 }
+
+	 void LoadTexture()
+	 {
+// 		 TextureLoadInfo loadInfo;
+// 		 loadInfo.IsSRGB = true;
+		RefCntAutoPtr<ITexture> Tex;
+// 		 CreateTextureFromFile("DGLogo.png", loadInfo, m_pDevice, &Tex);
+		 static constexpr Uint32 TexDim = 128;
+		 TextureDesc TexDesc;
+		 TexDesc.Name = "White texture for PBR renderer";
+		 TexDesc.Type = RESOURCE_DIM_TEX_2D;
+		 TexDesc.Usage = USAGE_IMMUTABLE;
+		 TexDesc.BindFlags = BIND_SHADER_RESOURCE;
+		 TexDesc.Width = TexDim;
+		 TexDesc.Height = TexDim;
+		 TexDesc.Format = TEX_FORMAT_RGBA8_UNORM;
+		 TexDesc.MipLevels = 1;
+		 std::vector<Uint32> Data(TexDim * TexDim, 0xFFFFFFFF);
+		 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 };
+		 TextureData         InitData{ &Level0Data, 1 };
+
+		 m_pDevice->CreateTexture(TexDesc, &InitData, &Tex);
+		 // Get shader resource view from the texture
+		 m_TextureSRV = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+
+		 // Set texture SRV in the SRB
+		 m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "g_Texture")->Set(m_TextureSRV);
+	 }
+
+	 void InitFilament()
+	 {
+		 using namespace filament;
+		 //     Engine::Config engineConfig = {};
+		 Engine* engine = FEngine::create();
+
+		 int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
+		 size_t size = fileSize(fd);
+		 char* data = (char*)malloc(size);
+		 read(fd, data, size);
+
+		 auto material = Material::Builder().package(data, size).build(*engine);
+		 auto mi = material->createInstance();
+		 mi->setParameter("baseColor", RgbType::LINEAR, math::float3{ 0.8 });
+		 mi->setParameter("metallic", 1.0f);
+		 mi->setParameter("roughness", 0.4f);
+		 mi->setParameter("reflectance", 0.5f);
+		 free(data);
+		 close(fd);
+		 //auto mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, MONKEY_SUZANNE_DATA, nullptr, nullptr, mi);
+		 fd = open("D:\\filament-1.59.4\\assets\\models\\monkey\\monkey.filamesh", O_RDONLY);
+		 size = fileSize(fd);
+		 data = (char*)malloc(size);
+		 read(fd, data, size);
+		 static const char MAGICID[]{ 'F', 'I', 'L', 'A', 'M', 'E', 'S', 'H' };
+// 		 filamesh::MeshReader::Mesh mesh;
+// 		 if (data) {
+// 			 char* p = data;
+// 			 char* magic = p;
+// 			 p += sizeof(MAGICID);
+// 
+// 			 if (!strncmp(MAGICID, magic, 8)) {
+// 				 filamesh::MeshReader::MaterialRegistry reg;
+// 				 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
+// 				 mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, data, nullptr, nullptr, reg);
+// 			 }
+// 			 free(data);
+// 		 }
+// 		 close(fd);
+
+		 const uint8_t* p = (const uint8_t*)data;
+		 if (strncmp(MAGICID, (const char*)p, 8)) {
+			 // 		 utils::slog.e << "Magic string not found." << utils::io::endl;
+			 // 		 return {};
+			 ;
+		 }
+		 p += 8;
+
+		 filamesh::Header* header = (filamesh::Header*)p;
+		 p += sizeof(filamesh::Header);
+
+		 uint8_t const* vertexData = p;
+		 p += header->vertexSize;
+
+		 uint8_t const* indices = p;
+		 p += header->indexSize;
+
+		 filamesh::Part* parts = (filamesh::Part*)p;
+		 p += header->parts * sizeof(filamesh::Part);
+
+		 uint32_t materialCount = (uint32_t)*p;
+		 p += sizeof(uint32_t);
+
+		 std::vector<std::string> partsMaterial(materialCount);
+		 for (size_t i = 0; i < materialCount; i++) {
+			 uint32_t nameLength = (uint32_t)*p;
+			 p += sizeof(uint32_t);
+			 partsMaterial[i] = (const char*)p;
+			 p += nameLength + 1; // null terminated
+		 }
+
+		 const size_t indicesSize = header->indexSize;
+		 //
+		 BufferDesc IndBuffDesc;
+		 IndBuffDesc.Name = "Cube index buffer";
+		 IndBuffDesc.Usage = USAGE_IMMUTABLE;
+		 IndBuffDesc.BindFlags = BIND_INDEX_BUFFER;
+		 IndBuffDesc.Size = indicesSize;
+		 BufferData IBData;
+		 IBData.pData = indices;
+		 IBData.DataSize = indicesSize;
+         m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
+		 //
+         const size_t verticesSize = header->vertexSize;
+		 BufferDesc VertBuffDesc;
+		 VertBuffDesc.Name = "Cube vertex buffer";
+		 VertBuffDesc.Usage = USAGE_IMMUTABLE;
+		 VertBuffDesc.BindFlags = BIND_VERTEX_BUFFER;
+		 VertBuffDesc.Size = verticesSize;
+		 BufferData VBData;
+		 VBData.pData = vertexData;
+		 VBData.DataSize = verticesSize;
+         m_pDevice->CreateBuffer(VertBuffDesc, &VBData, &m_CubeVertexBuffer);
+         free(data);
+         close(fd);
+	 }
+
      void CreateResources()
      {
-         InitFilament();
+         //InitFilament();
+		 CreatePipelineState();
+		 CreateVertexBuffer();
+		 CreateIndexBuffer();
+		 LoadTexture();
+		 return;
          // Pipeline state object encompasses configuration of all GPU stages
  
          GraphicsPipelineStateCreateInfo PSOCreateInfo;
@@ -428,7 +772,136 @@ static void InitFilament()
          m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
      }
  
-     void Render()
+	 void Render()
+	 {
+
+		 IDeviceContext* pCtx = m_pImmediateContext;// GetImmediateContext();
+		 pCtx->ClearStats();
+
+		 ITextureView* pRTV = m_pSwapChain->GetCurrentBackBufferRTV();
+		 ITextureView* pDSV = m_pSwapChain->GetDepthBufferDSV();
+		 pCtx->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+// 		 ITextureView* pRTV = m_pSwapChain->GetCurrentBackBufferRTV();
+// 		 ITextureView* pDSV = m_pSwapChain->GetDepthBufferDSV();
+		 // Clear the back buffer
+		 float4 ClearColor = { 0.350f, 0.350f, 0.350f, 1.0f };
+// 		 if (m_ConvertPSOutputToGamma)
+// 		 {
+// 			 // If manual gamma correction is required, we need to clear the render target with sRGB color
+// 			 ClearColor = LinearToSRGB(ClearColor);
+// 		 }
+		 m_pImmediateContext->ClearRenderTarget(pRTV, ClearColor.Data(), RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		 m_pImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+		 {
+			 // Map the buffer and write current world-view-projection matrix
+			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
+			 *CBConstants = m_WorldViewProjMatrix;
+		 }
+
+		 // Bind vertex and index buffers
+		 const Uint64 offset = 0;
+		 IBuffer* pBuffs[] = { m_CubeVertexBuffer };
+		 m_pImmediateContext->SetVertexBuffers(0, 1, pBuffs, &offset, RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
+		 m_pImmediateContext->SetIndexBuffer(m_CubeIndexBuffer, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+		 // Set the pipeline state
+		 m_pImmediateContext->SetPipelineState(m_pPSO);
+		 // Commit shader resources. RESOURCE_STATE_TRANSITION_MODE_TRANSITION mode
+		 // makes sure that resources are transitioned to required states.
+		 m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+
+		 DrawIndexedAttribs DrawAttrs;     // This is an indexed draw call
+		 DrawAttrs.IndexType = VT_UINT32; // Index type
+		 DrawAttrs.NumIndices = 36;
+		 // Verify the state of vertex and index buffers
+		 DrawAttrs.Flags = DRAW_FLAG_VERIFY_ALL;
+		 m_pImmediateContext->DrawIndexed(DrawAttrs);
+
+		 pCtx->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+	 }
+	 float4x4 GetSurfacePretransformMatrix(const float3& f3CameraViewAxis) const
+	 {
+		 const auto& SCDesc = m_pSwapChain->GetDesc();
+		 switch (SCDesc.PreTransform)
+		 {
+		 case SURFACE_TRANSFORM_ROTATE_90:
+			 // The image content is rotated 90 degrees clockwise.
+			 return float4x4::RotationArbitrary(f3CameraViewAxis, -PI_F / 2.f);
+
+		 case SURFACE_TRANSFORM_ROTATE_180:
+			 // The image content is rotated 180 degrees clockwise.
+			 return float4x4::RotationArbitrary(f3CameraViewAxis, -PI_F);
+
+		 case SURFACE_TRANSFORM_ROTATE_270:
+			 // The image content is rotated 270 degrees clockwise.
+			 return float4x4::RotationArbitrary(f3CameraViewAxis, -PI_F * 3.f / 2.f);
+
+		 case SURFACE_TRANSFORM_OPTIMAL:
+			 UNEXPECTED("SURFACE_TRANSFORM_OPTIMAL is only valid as parameter during swap chain initialization.");
+			 return float4x4::Identity();
+
+		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR:
+		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90:
+		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180:
+		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270:
+			 UNEXPECTED("Mirror transforms are not supported");
+			 return float4x4::Identity();
+
+		 default:
+			 return float4x4::Identity();
+		 }
+	 }
+	 float4x4 GetAdjustedProjectionMatrix(float FOV, float NearPlane, float FarPlane) const
+	 {
+		 const auto& SCDesc = m_pSwapChain->GetDesc();
+
+		 float AspectRatio = static_cast<float>(SCDesc.Width) / static_cast<float>(SCDesc.Height);
+		 float XScale, YScale;
+		 if (SCDesc.PreTransform == SURFACE_TRANSFORM_ROTATE_90 ||
+			 SCDesc.PreTransform == SURFACE_TRANSFORM_ROTATE_270 ||
+			 SCDesc.PreTransform == SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90 ||
+			 SCDesc.PreTransform == SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270)
+		 {
+			 // When the screen is rotated, vertical FOV becomes horizontal FOV
+			 XScale = 1.f / std::tan(FOV / 2.f);
+			 // Aspect ratio is inversed
+			 YScale = XScale * AspectRatio;
+		 }
+		 else
+		 {
+			 YScale = 1.f / std::tan(FOV / 2.f);
+			 XScale = YScale / AspectRatio;
+		 }
+
+		 float4x4 Proj;
+		 Proj._11 = XScale;
+		 Proj._22 = YScale;
+		 Proj.SetNearFarClipPlanes(NearPlane, FarPlane, m_pDevice->GetDeviceInfo().NDC.MinZ == -1);
+		 return Proj;
+	 }
+	 void Update(double CurrTime, double ElapsedTime, bool DoUpdateUI)
+	 {
+		 //SampleBase::Update(CurrTime, ElapsedTime, DoUpdateUI);
+
+		 // Apply rotation
+		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
+
+		 // Camera is at (0, 0, -5) looking along the Z axis
+		 float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
+
+		 // Get pretransform matrix that rotates the scene according the surface orientation
+		 float4x4 SrfPreTransform = GetSurfacePretransformMatrix(float3{ 0, 0, 1 });
+
+		 // Get projection matrix adjusted to the current screen orientation
+		 float4x4 Proj = GetAdjustedProjectionMatrix(PI_F / 4.0f, 0.1f, 100.f);
+
+		 // Compute world-view-projection matrix
+		 m_WorldViewProjMatrix = CubeModelTransform * View * SrfPreTransform * Proj;
+	 }
+
+     void Render0()
      {
          // Set render targets before issuing any draw command.
          // Note that Present() unbinds the back buffer if it is set as render target.
@@ -472,10 +945,54 @@ static void InitFilament()
      RefCntAutoPtr<ISwapChain>     m_pSwapChain;
      RefCntAutoPtr<IPipelineState> m_pPSO;
      RENDER_DEVICE_TYPE            m_DeviceType = RENDER_DEVICE_TYPE_D3D11;
+	 //
+	 RefCntAutoPtr<IBuffer>                m_CubeVertexBuffer;
+	 RefCntAutoPtr<IBuffer>                m_CubeIndexBuffer;
+	 RefCntAutoPtr<IBuffer>                m_VSConstants;
+	 RefCntAutoPtr<ITextureView>           m_TextureSRV;
+	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
+	 float4x4                              m_WorldViewProjMatrix;
+	 bool m_ConvertPSOutputToGamma = false;
  };
  
  std::unique_ptr<Tutorial00App> g_pTheApp;
  
+ class Timer
+ {
+ public:
+	 Timer();
+	 void   Restart();
+	 double GetElapsedTime() const;
+	 float  GetElapsedTimef() const;
+
+ private:
+	 std::chrono::high_resolution_clock::time_point m_StartTime;
+ };
+
+ using namespace std::chrono;
+ Timer::Timer()
+ {
+	 Restart();
+ }
+
+ void Timer::Restart()
+ {
+	 m_StartTime = high_resolution_clock().now();
+ }
+
+ template <typename T>
+ T GetElapsedTimeT(high_resolution_clock::time_point StartTime)
+ {
+	 auto CurrTime = high_resolution_clock::now();
+	 auto time_span = duration_cast<duration<T>>(CurrTime - StartTime);
+	 return time_span.count();
+ }
+
+ double Timer::GetElapsedTime() const
+ {
+	 return GetElapsedTimeT<double>(m_StartTime);
+ }
+
  LRESULT CALLBACK MessageProc(HWND, UINT, WPARAM, LPARAM);
  // Main
  int WINAPI WinMain(_In_ HINSTANCE     hInstance,
@@ -526,7 +1043,10 @@ static void InitFilament()
          return -1;
  
      g_pTheApp->CreateResources();
- 
+
+	 Timer timer;
+
+	 double PrevTime = timer.GetElapsedTime();
      // Main message loop
      MSG msg = {0};
      while (WM_QUIT != msg.message)
@@ -538,6 +1058,10 @@ static void InitFilament()
          }
          else
          {
+			 double CurrTime = timer.GetElapsedTime();
+			 double ElapsedTime = CurrTime - PrevTime;
+			 PrevTime = CurrTime;
+			 g_pTheApp->Update(CurrTime, 0.0, false);
              g_pTheApp->Render();
              g_pTheApp->Present();
          }
