@@ -751,6 +751,8 @@ void main(in  PSInput  PSIn,
 		 IBData.DataSize = indicesSize;
          m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
 		 //
+		 VertexBuffer::AttributeType uvtype = (header->flags & filamesh::TEXCOORD_SNORM16) ?
+			 VertexBuffer::AttributeType::SHORT2 : VertexBuffer::AttributeType::HALF2;
          const size_t verticesSize = header->vertexSize;
 		 BufferDesc VertBuffDesc;
 		 VertBuffDesc.Name = "Cube vertex buffer";
@@ -849,12 +851,23 @@ void main(in  PSInput  PSIn,
 
 		 // clang-format off
 		 // Define vertex shader input layout
+// 		 LayoutElement LayoutElems[] =
+// 		 {
+// 			 // Attribute 0 - vertex position
+// 			 LayoutElement{0, 0, 3, VT_FLOAT32, False},
+// 			 // Attribute 1 - vertex color
+// 			 LayoutElement{1, 0, 4, VT_FLOAT32, False}
+// 		 };
 		 LayoutElement LayoutElems[] =
 		 {
 			 // Attribute 0 - vertex position
-			 LayoutElement{0, 0, 3, VT_FLOAT32, False},
-			 // Attribute 1 - vertex color
-			 LayoutElement{1, 0, 4, VT_FLOAT32, False}
+			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0},
+			 // Attribute 1 - vertex tangent
+			 LayoutElement{1, 1, 4, VT_INT16, True, 142280},
+			 // Attribute 2 - vertex color
+			 LayoutElement{2, 2, 4, VT_UINT8, True, 284560},
+			 // Attribute 3 - vertex uv
+			 LayoutElement{3, 3, 2, VT_INT16, True, 355700}
 		 };
 		 // clang-format on
 		 PSOCreateInfo.GraphicsPipeline.InputLayout.LayoutElements = LayoutElems;
