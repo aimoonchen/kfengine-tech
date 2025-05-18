@@ -54,6 +54,7 @@
 // Set to true to print every command out on log.d. This requires RTTI and DEBUG
 #define DEBUG_COMMAND_STREAM false
 
+extern void DiligentCreateProgram(filament::backend::Program&& program);
 namespace filament::backend {
 
 class CommandStream {
@@ -90,7 +91,7 @@ public:
 	void destroyBufferObject(Handle<HwBufferObject> boh) {}
 	void destroyTexture(Handle<HwTexture> th) {}
 	void destroyProgram(Handle<HwProgram> ph) {}
-    backend::ProgramHandle createProgram(backend::Program&& program) { return {}; }
+    backend::ProgramHandle createProgram(backend::Program&& program) { DiligentCreateProgram(std::move(program)); return {}; }
     backend::BufferObjectHandle createBufferObject(
         uint32_t byteCount,
         backend::BufferObjectBinding bindingType,

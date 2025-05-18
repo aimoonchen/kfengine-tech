@@ -83,7 +83,8 @@
 #include <filament/MaterialInstance.h>
 #include <filament/VertexBuffer.h>
 #include <details/Engine.h>
-
+#include "details/Material.h"
+#include "details/MaterialInstance.h"
 #include <filameshio/MeshReader.h>
 #include <fcntl.h>
 #if !defined(WIN32)
@@ -224,8 +225,8 @@ void main(in  PSInput  PSIn,
 //     PSOut.Color = Color;
 // }
 //  )";
- 
- 
+
+
  class Tutorial00App
  {
  public:
@@ -765,6 +766,55 @@ void main(in  PSInput  PSIn,
          m_pDevice->CreateBuffer(VertBuffDesc, &VBData, &m_CubeVertexBuffer);
          free(data);
          close(fd);
+
+		 auto fm = downcast(mi)->getMaterial();
+		 Variant variant;
+		 variant.setDirectionalLighting(true/*view.hasDirectionalLighting()*/);
+		 variant.setDynamicLighting(false/*view.hasDynamicLighting()*/);
+		 variant.setFog(false/*view.hasFog()*/);
+		 variant.setVsm(false/*view.hasShadowing() && view.getShadowType() != ShadowType::PCF*/);
+		 variant.setStereo(false/*view.hasStereo()*/);
+		 //
+		 assert_invariant(variant == Variant::filterVariant(variant, isVariantLit()));
+
+		 assert_invariant(!Variant::isReserved(variant));
+
+		 Variant const vertexVariant = Variant::filterVariantVertex(variant);
+		 Variant const fragmentVariant = Variant::filterVariantFragment(variant);
+		 fm->prepareProgram(variant);
+		 auto program = fm->getProgram(variant);
+// 		 backend::Program pb{ fm->getProgramWithVariants(variant, vertexVariant, fragmentVariant) };
+// 		 pb.priorityQueue(priorityQueue);
+// 		 pb.multiview(mEngine.getConfig().stereoscopicType == StereoscopicType::MULTIVIEW && Variant::isStereoVariant(variant));
+		 //
+		 downcast(mi)->getMaterial()->prepareProgram(variant);
+	 }
+	 
+	 void CreateFilamentProgram(filament::backend::Program&& builder)
+	 {
+		 constexpr uint8_t const MAX_SHADER_MODULES = 2;
+		 using namespace filament::backend;
+		 Program::ShaderSource const& blobs = builder.getShadersSource();
+		 //auto& modules = mInfo->shaders;
+		 auto const& specializationConstants = builder.getSpecializationConstants();
+		 std::vector<uint32_t> shader;
+
+		 static_assert(static_cast<ShaderStage>(0) == ShaderStage::VERTEX &&
+			 static_cast<ShaderStage>(1) == ShaderStage::FRAGMENT &&
+			 MAX_SHADER_MODULES == 2);
+
+		 for (size_t i = 0; i < MAX_SHADER_MODULES; i++) {
+			 Program::ShaderBlob const& blob = blobs[i];
+
+			 uint32_t* data = (uint32_t*)blob.data();
+			 size_t dataSize = blob.size();
+
+			 if (!specializationConstants.empty()) {
+				 fvkutils::workaroundSpecConstant(blob, specializationConstants, shader);
+				 data = (uint32_t*)shader.data();
+				 dataSize = shader.size() * 4;
+			 }
+		 }
 	 }
 
 	 void CreatePipelineState()
@@ -885,7 +935,8 @@ void main(in  PSInput  PSIn,
 		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
 		 // change and are bound directly through the pipeline state object.
 		 m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
-
+		 auto count = m_pPSO->GetStaticVariableCount(SHADER_TYPE_VERTEX);
+		 count = m_pPSO->GetStaticVariableCount(SHADER_TYPE_PIXEL);
 		 // Create a shader resource binding object and bind all static resources in it
 		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
 	 }
@@ -1190,7 +1241,12 @@ void main(in  PSInput  PSIn,
  };
  
  std::unique_ptr<Tutorial00App> g_pTheApp;
- 
+
+ void DiligentCreateProgram(filament::backend::Program&& program)
+ {
+	 g_pTheApp->CreateFilamentProgram(std::move(program));
+ }
+
  class Timer
  {
  public:
