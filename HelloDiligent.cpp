@@ -550,7 +550,7 @@ void main(in  PSInput  PSIn,
 		 struct Vertex
 		 {
 			 float3 pos;
-			 float2 uv;
+			 float4 color;
 		 };
 
 		 // Cube vertices
@@ -570,41 +570,20 @@ void main(in  PSInput  PSIn,
 		 //        (-1,-1,-1)       (+1,-1,-1)
 		 //
 
-		 // This time we have to duplicate verices because texture coordinates cannot
-		 // be shared
-		 constexpr Vertex CubeVerts[] =
+		 constexpr Vertex CubeVerts[8] =
 		 {
-			 {float3{-1, -1, -1}, float2{0, 1}},
-			 {float3{-1, +1, -1}, float2{0, 0}},
-			 {float3{+1, +1, -1}, float2{1, 0}},
-			 {float3{+1, -1, -1}, float2{1, 1}},
+			 {float3{-1, -1, -1}, float4{1, 0, 0, 1}},
+			 {float3{-1, +1, -1}, float4{0, 1, 0, 1}},
+			 {float3{+1, +1, -1}, float4{0, 0, 1, 1}},
+			 {float3{+1, -1, -1}, float4{1, 1, 1, 1}},
 
-			 {float3{-1, -1, -1}, float2{0, 1}},
-			 {float3{-1, -1, +1}, float2{0, 0}},
-			 {float3{+1, -1, +1}, float2{1, 0}},
-			 {float3{+1, -1, -1}, float2{1, 1}},
-
-			 {float3{+1, -1, -1}, float2{0, 1}},
-			 {float3{+1, -1, +1}, float2{1, 1}},
-			 {float3{+1, +1, +1}, float2{1, 0}},
-			 {float3{+1, +1, -1}, float2{0, 0}},
-
-			 {float3{+1, +1, -1}, float2{0, 1}},
-			 {float3{+1, +1, +1}, float2{0, 0}},
-			 {float3{-1, +1, +1}, float2{1, 0}},
-			 {float3{-1, +1, -1}, float2{1, 1}},
-
-			 {float3{-1, +1, -1}, float2{1, 0}},
-			 {float3{-1, +1, +1}, float2{0, 0}},
-			 {float3{-1, -1, +1}, float2{0, 1}},
-			 {float3{-1, -1, -1}, float2{1, 1}},
-
-			 {float3{-1, -1, +1}, float2{1, 1}},
-			 {float3{+1, -1, +1}, float2{0, 1}},
-			 {float3{+1, +1, +1}, float2{0, 0}},
-			 {float3{-1, +1, +1}, float2{1, 0}},
+			 {float3{-1, -1, +1}, float4{1, 1, 0, 1}},
+			 {float3{-1, +1, +1}, float4{0, 1, 1, 1}},
+			 {float3{+1, +1, +1}, float4{1, 0, 1, 1}},
+			 {float3{+1, -1, +1}, float4{0.2f, 0.2f, 0.2f, 1.f}},
 		 };
 
+		 // Create a vertex buffer that stores cube vertices
 		 BufferDesc VertBuffDesc;
 		 VertBuffDesc.Name = "Cube vertex buffer";
 		 VertBuffDesc.Usage = USAGE_IMMUTABLE;
@@ -621,12 +600,12 @@ void main(in  PSInput  PSIn,
 		 // clang-format off
 		 constexpr Uint32 Indices[] =
 		 {
-			 2,0,1,    2,3,0,
-			 4,6,5,    4,7,6,
-			 8,10,9,   8,11,10,
-			 12,14,13, 12,15,14,
-			 16,18,17, 16,19,18,
-			 20,21,22, 20,22,23
+			 2,0,1, 2,3,0,
+			 4,6,5, 4,7,6,
+			 0,7,4, 0,3,7,
+			 1,0,4, 1,4,5,
+			 1,5,2, 5,6,2,
+			 3,6,7, 3,2,6
 		 };
 		 // clang-format on
 
@@ -640,6 +619,7 @@ void main(in  PSInput  PSIn,
 		 IBData.DataSize = sizeof(Indices);
 		 m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
 	 }
+
 
 	 void LoadTexture()
 	 {
@@ -740,7 +720,7 @@ void main(in  PSInput  PSIn,
 			 p += nameLength + 1; // null terminated
 		 }
 
-		 const size_t indicesSize = header->indexSize;
+		const size_t indicesSize = header->indexSize;
 		 //
 		 BufferDesc IndBuffDesc;
 		 IndBuffDesc.Name = "Cube index buffer";
@@ -789,32 +769,155 @@ void main(in  PSInput  PSIn,
 		 //
 		 downcast(mi)->getMaterial()->prepareProgram(variant);
 	 }
-	 
-	 void CreateFilamentProgram(filament::backend::Program&& builder)
+	 // split shader source code in three:
+// - the version line
+// - extensions
+// - everything else
+	 /* static */ std::array<std::string_view, 3> splitShaderSource(std::string_view source) noexcept {
+		 auto version_start = source.find("#version");
+		 assert_invariant(version_start != std::string_view::npos);
+
+		 auto version_eol = source.find('\n', version_start) + 1;
+		 assert_invariant(version_eol != std::string_view::npos);
+
+		 auto prolog_start = version_eol;
+		 auto prolog_eol = source.rfind("\n#extension");// last #extension line
+		 if (prolog_eol == std::string_view::npos) {
+			 prolog_eol = prolog_start;
+		 }
+		 else {
+			 prolog_eol = source.find('\n', prolog_eol + 1) + 1;
+		 }
+		 auto body_start = prolog_eol;
+
+		 std::string_view const version = source.substr(version_start, version_eol - version_start);
+		 std::string_view const prolog = source.substr(prolog_start, prolog_eol - prolog_start);
+		 std::string_view const body = source.substr(body_start, source.length() - body_start);
+		 return { version, prolog, body };
+	 }
+
+	 void CreateFilamentProgram(filament::backend::Program&& program)
 	 {
-		 constexpr uint8_t const MAX_SHADER_MODULES = 2;
 		 using namespace filament::backend;
-		 Program::ShaderSource const& blobs = builder.getShadersSource();
-		 //auto& modules = mInfo->shaders;
-		 auto const& specializationConstants = builder.getSpecializationConstants();
-		 std::vector<uint32_t> shader;
+		 // opengl
+		 auto shadersSource = std::move(program.getShadersSource());
+		 utils::FixedCapacityVector<Program::SpecializationConstant> const& specializationConstants = program.getSpecializationConstants();
+		 bool multiview = false;
 
-		 static_assert(static_cast<ShaderStage>(0) == ShaderStage::VERTEX &&
-			 static_cast<ShaderStage>(1) == ShaderStage::FRAGMENT &&
-			 MAX_SHADER_MODULES == 2);
+		 auto appendSpecConstantString = +[](std::string& s, Program::SpecializationConstant const& sc) {
+			 s += "#define SPIRV_CROSS_CONSTANT_ID_" + std::to_string(sc.id) + ' ';
+			 s += std::visit([](auto&& arg) { return std::to_string(arg); }, sc.value);
+			 s += '\n';
+			 return s;
+			 };
 
-		 for (size_t i = 0; i < MAX_SHADER_MODULES; i++) {
-			 Program::ShaderBlob const& blob = blobs[i];
-
-			 uint32_t* data = (uint32_t*)blob.data();
-			 size_t dataSize = blob.size();
-
-			 if (!specializationConstants.empty()) {
-				 fvkutils::workaroundSpecConstant(blob, specializationConstants, shader);
-				 data = (uint32_t*)shader.data();
-				 dataSize = shader.size() * 4;
+		 std::string specializationConstantString;
+		 int32_t numViews = 2;
+		 for (auto const& sc : specializationConstants) {
+			 appendSpecConstantString(specializationConstantString, sc);
+			 if (sc.id == 8) {
+				 // This constant must match
+				 // ReservedSpecializationConstants::CONFIG_STEREO_EYE_COUNT
+				 // which we can't use here because it's defined in EngineEnums.h.
+				 // (we're breaking layering here, but it's for the good cause).
+				 numViews = std::get<int32_t>(sc.value);
 			 }
 		 }
+		 if (!specializationConstantString.empty()) {
+			 specializationConstantString += '\n';
+		 }
+
+		 // build all shaders
+		for (size_t i = 0; i < Program::SHADER_TYPE_COUNT; i++) {
+// 				 const ShaderStage stage = static_cast<ShaderStage>(i);
+// 				 GLenum glShaderType{};
+// 				 switch (stage) {
+// 				 case ShaderStage::VERTEX:
+// 					 glShaderType = GL_VERTEX_SHADER;
+// 					 break;
+// 				 case ShaderStage::FRAGMENT:
+// 					 glShaderType = GL_FRAGMENT_SHADER;
+// 					 break;
+// 				 case ShaderStage::COMPUTE:
+// #if defined(BACKEND_OPENGL_LEVEL_GLES31)
+// 					 glShaderType = GL_COMPUTE_SHADER;
+// #else
+// 					 continue;
+// #endif
+// 					 break;
+// 				 }
+
+			if (!shadersSource[i].empty()) {
+				Program::ShaderBlob& shader = shadersSource[i];
+				char* shader_src = reinterpret_cast<char*>(shader.data());
+				size_t shader_len = shader.size();
+
+				// remove GOOGLE_cpp_style_line_directive
+				//process_GOOGLE_cpp_style_line_directive(context, shader_src, shader_len);
+
+				// replace the value of layout(num_views = X) for multiview extension
+// 					 if (multiview && stage == ShaderStage::VERTEX) {
+// 						 process_OVR_multiview2(context, numViews, shader_src, shader_len);
+// 					 }
+
+				// add support for ARB_shading_language_packing if needed
+				//auto const packingFunctions = process_ARB_shading_language_packing(context);
+				std::string_view packingFunctions;
+				// split shader source, so we can insert the specialization constants and the packing
+				// functions
+				auto [version, prolog, body] = splitShaderSource({ shader_src, shader_len });
+
+				// enable ESSL 3.10 if available
+// 					 if (context.isAtLeastGLES<3, 1>()) {
+// 						 version = "#version 310 es\n";
+// 					 }
+
+				std::array<std::string_view, 5> sources = {
+					version,
+					prolog,
+					specializationConstantString,
+					packingFunctions,
+					{ body.data(), body.size() - 1 }  // null-terminated
+				};
+
+				// Some of the sources may be zero-length. Remove them as to avoid passing lengths of
+				// zero to glShaderSource(). glShaderSource should work with lengths of zero, but some
+				// drivers instead interpret zero as a sentinel for a null-terminated string.
+				auto partitionPoint = std::stable_partition(
+					sources.begin(), sources.end(), [](std::string_view s) { return !s.empty(); });
+				size_t count = std::distance(sources.begin(), partitionPoint);
+
+				std::array<const char*, 5> shaderStrings;
+				std::array<int, 5> lengths;
+				for (size_t i = 0; i < count; i++) {
+					shaderStrings[i] = sources[i].data();
+					lengths[i] = sources[i].size();
+				}
+			}
+		}
+		 // vulkan
+// 		 constexpr uint8_t const MAX_SHADER_MODULES = 2;
+// 		 Program::ShaderSource const& blobs = builder.getShadersSource();
+// 		 //auto& modules = mInfo->shaders;
+// 		 auto const& specializationConstants = builder.getSpecializationConstants();
+// 		 std::vector<uint32_t> shader;
+// 
+// 		 static_assert(static_cast<ShaderStage>(0) == ShaderStage::VERTEX &&
+// 			 static_cast<ShaderStage>(1) == ShaderStage::FRAGMENT &&
+// 			 MAX_SHADER_MODULES == 2);
+// 
+// 		 for (size_t i = 0; i < MAX_SHADER_MODULES; i++) {
+// 			 Program::ShaderBlob const& blob = blobs[i];
+// 
+// 			 uint32_t* data = (uint32_t*)blob.data();
+// 			 size_t dataSize = blob.size();
+// 
+// 			 if (!specializationConstants.empty()) {
+// 				 //fvkutils::workaroundSpecConstant(blob, specializationConstants, shader);
+// 				 data = (uint32_t*)shader.data();
+// 				 dataSize = shader.size() * 4;
+// 			 }
+// 		 }
 	 }
 
 	 void CreatePipelineState()
@@ -908,6 +1011,7 @@ void main(in  PSInput  PSIn,
 // 			 // Attribute 1 - vertex color
 // 			 LayoutElement{1, 0, 4, VT_FLOAT32, False}
 // 		 };
+
 		 LayoutElement LayoutElems[] =
 		 {
 			 // Attribute 0 - vertex position
@@ -935,8 +1039,7 @@ void main(in  PSInput  PSIn,
 		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
 		 // change and are bound directly through the pipeline state object.
 		 m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
-		 auto count = m_pPSO->GetStaticVariableCount(SHADER_TYPE_VERTEX);
-		 count = m_pPSO->GetStaticVariableCount(SHADER_TYPE_PIXEL);
+
 		 // Create a shader resource binding object and bind all static resources in it
 		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
 	 }
@@ -945,8 +1048,8 @@ void main(in  PSInput  PSIn,
      {
          //InitFilament();
 		 CreatePipelineState();
-		 //CreateVertexBuffer();
-		 //CreateIndexBuffer();
+// 		 CreateVertexBuffer();
+// 		 CreateIndexBuffer();
 		 InitFilament();
 		 //LoadTexture();
 		 return;
@@ -1048,8 +1151,10 @@ void main(in  PSInput  PSIn,
 		 m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		 DrawIndexedAttribs DrawAttrs;     // This is an indexed draw call
-		 DrawAttrs.IndexType = VT_UINT16;// VT_UINT32; // Index type
-		 DrawAttrs.NumIndices = 47232;// 36;
+// 		 DrawAttrs.IndexType = VT_UINT32; // Index type
+// 		 DrawAttrs.NumIndices = 36;
+		 DrawAttrs.IndexType = VT_UINT16; // Index type
+		 DrawAttrs.NumIndices = 47232;
 		 // Verify the state of vertex and index buffers
 		 DrawAttrs.Flags = DRAW_FLAG_VERIFY_ALL;
 		 m_pImmediateContext->DrawIndexed(DrawAttrs);
@@ -1229,7 +1334,7 @@ void main(in  PSInput  PSIn,
      RefCntAutoPtr<IDeviceContext> m_pImmediateContext;
      RefCntAutoPtr<ISwapChain>     m_pSwapChain;
      RefCntAutoPtr<IPipelineState> m_pPSO;
-     RENDER_DEVICE_TYPE            m_DeviceType = RENDER_DEVICE_TYPE_D3D11;
+	 RENDER_DEVICE_TYPE            m_DeviceType = RENDER_DEVICE_TYPE_D3D11;
 	 //
 	 RefCntAutoPtr<IBuffer>                m_CubeVertexBuffer;
 	 RefCntAutoPtr<IBuffer>                m_CubeIndexBuffer;
