@@ -405,145 +405,6 @@ void main(in  PSInput  PSIn,
          return true;
      }
 
-	 void CreatePipelineState0()
-	 {
-		 // Pipeline state object encompasses configuration of all GPU stages
-
-		 GraphicsPipelineStateCreateInfo PSOCreateInfo;
-
-		 // Pipeline state name is used by the engine to report issues.
-		 // It is always a good idea to give objects descriptive names.
-		 PSOCreateInfo.PSODesc.Name = "Cube PSO";
-
-		 // This is a graphics pipeline
-		 PSOCreateInfo.PSODesc.PipelineType = PIPELINE_TYPE_GRAPHICS;
-
-		 // clang-format off
-		 // This tutorial will render to a single render target
-		 PSOCreateInfo.GraphicsPipeline.NumRenderTargets = 1;
-		 // Set render target format which is the format of the swap chain's color buffer
-		 PSOCreateInfo.GraphicsPipeline.RTVFormats[0] = m_pSwapChain->GetDesc().ColorBufferFormat;
-		 // Set depth buffer format which is the format of the swap chain's back buffer
-		 PSOCreateInfo.GraphicsPipeline.DSVFormat = m_pSwapChain->GetDesc().DepthBufferFormat;
-		 // Primitive topology defines what kind of primitives will be rendered by this pipeline state
-		 PSOCreateInfo.GraphicsPipeline.PrimitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-		 // Cull back faces
-		 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_BACK;
-		 // Enable depth testing
-		 PSOCreateInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = True;
-		 // clang-format on
-
-		 ShaderCreateInfo ShaderCI;
-		 // Tell the system that the shader source code is in HLSL.
-		 // For OpenGL, the engine will convert this into GLSL under the hood.
-		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_HLSL;
-
-		 // OpenGL backend requires emulated combined HLSL texture samplers (g_Texture + g_Texture_sampler combination)
-		 ShaderCI.Desc.UseCombinedTextureSamplers = true;
-
-		 // Pack matrices in row-major order
-		 ShaderCI.CompileFlags = SHADER_COMPILE_FLAG_PACK_MATRIX_ROW_MAJOR;
-
-		 // Presentation engine always expects input in gamma space. Normally, pixel shader output is
-		 // converted from linear to gamma space by the GPU. However, some platforms (e.g. Android in GLES mode,
-		 // or Emscripten in WebGL mode) do not support gamma-correction. In this case the application
-		 // has to do the conversion manually.
-		 ShaderMacro Macros[] = { {"CONVERT_PS_OUTPUT_TO_GAMMA", m_ConvertPSOutputToGamma ? "1" : "0"} };
-		 ShaderCI.Macros = { Macros, _countof(Macros) };
-
-		 // Create a shader source stream factory to load shaders from files.
-// 		 RefCntAutoPtr<IShaderSourceInputStreamFactory> pShaderSourceFactory;
-// 		 m_pEngineFactory->CreateDefaultShaderSourceStreamFactory(nullptr, &pShaderSourceFactory);
-// 		 ShaderCI.pShaderSourceStreamFactory = pShaderSourceFactory;
-		 // Create a vertex shader
-		 RefCntAutoPtr<IShader> pVS;
-		 {
-			 ShaderCI.Desc.ShaderType = SHADER_TYPE_VERTEX;
-			 ShaderCI.EntryPoint = "main";
-			 ShaderCI.Desc.Name = "Cube VS";
-			 ShaderCI.Source = VSSource;
-			 //ShaderCI.FilePath = "cube.vsh";
-			 m_pDevice->CreateShader(ShaderCI, &pVS);
-			 // Create dynamic uniform buffer that will store our transformation matrix
-			 // Dynamic buffers can be frequently updated by the CPU
-			 BufferDesc CBDesc;
-			 CBDesc.Name = "VS constants CB";
-			 CBDesc.Size = sizeof(float4x4);
-			 CBDesc.Usage = USAGE_DYNAMIC;
-			 CBDesc.BindFlags = BIND_UNIFORM_BUFFER;
-			 CBDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
-			 m_pDevice->CreateBuffer(CBDesc, nullptr, &m_VSConstants);
-		 }
-
-		 // Create a pixel shader
-		 RefCntAutoPtr<IShader> pPS;
-		 {
-			 ShaderCI.Desc.ShaderType = SHADER_TYPE_PIXEL;
-			 ShaderCI.EntryPoint = "main";
-			 ShaderCI.Desc.Name = "Cube PS";
-			 ShaderCI.Source = PSSource;
-			 //ShaderCI.FilePath = "cube.psh";
-			 m_pDevice->CreateShader(ShaderCI, &pPS);
-		 }
-
-		 // clang-format off
-		 // Define vertex shader input layout
-		 LayoutElement LayoutElems[] =
-		 {
-			 // Attribute 0 - vertex position
-			 LayoutElement{0, 0, 3, VT_FLOAT32, False},
-			 // Attribute 1 - texture coordinates
-			 LayoutElement{1, 0, 2, VT_FLOAT32, False}
-		 };
-		 // clang-format on
-
-		 PSOCreateInfo.pVS = pVS;
-		 PSOCreateInfo.pPS = pPS;
-
-		 PSOCreateInfo.GraphicsPipeline.InputLayout.LayoutElements = LayoutElems;
-		 PSOCreateInfo.GraphicsPipeline.InputLayout.NumElements = _countof(LayoutElems);
-
-		 // Define variable type that will be used by default
-		 PSOCreateInfo.PSODesc.ResourceLayout.DefaultVariableType = SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
-
-		 // clang-format off
-		 // Shader variables should typically be mutable, which means they are expected
-		 // to change on a per-instance basis
-		 ShaderResourceVariableDesc Vars[] =
-		 {
-			 {SHADER_TYPE_PIXEL, "g_Texture", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE}
-		 };
-		 // clang-format on
-		 PSOCreateInfo.PSODesc.ResourceLayout.Variables = Vars;
-		 PSOCreateInfo.PSODesc.ResourceLayout.NumVariables = _countof(Vars);
-
-		 // clang-format off
-		 // Define immutable sampler for g_Texture. Immutable samplers should be used whenever possible
-		 SamplerDesc SamLinearClampDesc
-		 {
-			 FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR,
-			 TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP
-		 };
-		 ImmutableSamplerDesc ImtblSamplers[] =
-		 {
-			 {SHADER_TYPE_PIXEL, "g_Texture", SamLinearClampDesc}
-		 };
-		 // clang-format on
-		 PSOCreateInfo.PSODesc.ResourceLayout.ImmutableSamplers = ImtblSamplers;
-		 PSOCreateInfo.PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
-
-		 m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
-
-		 // Since we did not explicitly specify the type for 'Constants' variable, default
-		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables
-		 // never change and are bound directly through the pipeline state object.
-		 m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
-
-		 // Since we are using mutable variable, we must create a shader resource binding object
-		 // http://diligentgraphics.com/2016/03/23/resource-binding-model-in-diligent-engine-2-0/
-		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
-	 }
-
 	 void CreateVertexBuffer()
 	 {
 		 // Layout of this structure matches the one we defined in the pipeline state
@@ -1012,16 +873,27 @@ void main(in  PSInput  PSIn,
 // 			 LayoutElement{1, 0, 4, VT_FLOAT32, False}
 // 		 };
 
+// 		 LayoutElement LayoutElems[] =
+// 		 {
+// 			 // Attribute 0 - vertex position
+// 			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0},
+// 			 // Attribute 1 - vertex tangent
+// 			 LayoutElement{1, 1, 4, VT_INT16, True, 142280},
+// 			 // Attribute 2 - vertex color
+// 			 LayoutElement{2, 2, 4, VT_UINT8, True, 284560},
+// 			 // Attribute 3 - vertex uv
+// 			 LayoutElement{3, 3, 2, VT_INT16, True, 355700}
+// 		 };
 		 LayoutElement LayoutElems[] =
 		 {
 			 // Attribute 0 - vertex position
 			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0},
 			 // Attribute 1 - vertex tangent
-			 LayoutElement{1, 1, 4, VT_INT16, True, 142280},
+			 LayoutElement{1, 0, 4, VT_INT16, True, 142280},
 			 // Attribute 2 - vertex color
-			 LayoutElement{2, 2, 4, VT_UINT8, True, 284560},
+			 LayoutElement{2, 0, 4, VT_UINT8, True, 284560},
 			 // Attribute 3 - vertex uv
-			 LayoutElement{3, 3, 2, VT_INT16, True, 355700}
+			 LayoutElement{3, 0, 2, VT_INT16, True, 355700}
 		 };
 		 // clang-format on
 		 PSOCreateInfo.GraphicsPipeline.InputLayout.LayoutElements = LayoutElems;
@@ -1162,55 +1034,6 @@ void main(in  PSInput  PSIn,
 		 pCtx->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 	 }
 
-	 void Render0()
-	 {
-
-		 IDeviceContext* pCtx = m_pImmediateContext;// GetImmediateContext();
-		 pCtx->ClearStats();
-
-		 ITextureView* pRTV = m_pSwapChain->GetCurrentBackBufferRTV();
-		 ITextureView* pDSV = m_pSwapChain->GetDepthBufferDSV();
-		 pCtx->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-// 		 ITextureView* pRTV = m_pSwapChain->GetCurrentBackBufferRTV();
-// 		 ITextureView* pDSV = m_pSwapChain->GetDepthBufferDSV();
-		 // Clear the back buffer
-		 float4 ClearColor = { 0.350f, 0.350f, 0.350f, 1.0f };
-// 		 if (m_ConvertPSOutputToGamma)
-// 		 {
-// 			 // If manual gamma correction is required, we need to clear the render target with sRGB color
-// 			 ClearColor = LinearToSRGB(ClearColor);
-// 		 }
-		 m_pImmediateContext->ClearRenderTarget(pRTV, ClearColor.Data(), RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		 m_pImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		 {
-			 // Map the buffer and write current world-view-projection matrix
-			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
-			 *CBConstants = m_WorldViewProjMatrix;
-		 }
-
-		 // Bind vertex and index buffers
-		 const Uint64 offset = 0;
-		 IBuffer* pBuffs[] = { m_CubeVertexBuffer };
-		 m_pImmediateContext->SetVertexBuffers(0, 1, pBuffs, &offset, RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
-		 m_pImmediateContext->SetIndexBuffer(m_CubeIndexBuffer, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		 // Set the pipeline state
-		 m_pImmediateContext->SetPipelineState(m_pPSO);
-		 // Commit shader resources. RESOURCE_STATE_TRANSITION_MODE_TRANSITION mode
-		 // makes sure that resources are transitioned to required states.
-		 m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-
-		 DrawIndexedAttribs DrawAttrs;     // This is an indexed draw call
-		 DrawAttrs.IndexType = VT_UINT16;// VT_UINT32; // Index type
-		 DrawAttrs.NumIndices = 47232;// 36;
-		 // Verify the state of vertex and index buffers
-		 DrawAttrs.Flags = DRAW_FLAG_VERIFY_ALL;
-		 m_pImmediateContext->DrawIndexed(DrawAttrs);
-
-		 pCtx->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-	 }
 	 float4x4 GetSurfacePretransformMatrix(const float3& f3CameraViewAxis) const
 	 {
 		 const auto& SCDesc = m_pSwapChain->GetDesc();
@@ -1290,32 +1113,7 @@ void main(in  PSInput  PSIn,
 		 // Compute world-view-projection matrix
 		 m_WorldViewProjMatrix = CubeModelTransform * View * SrfPreTransform * Proj;
 	 }
-
-     void Render_()
-     {
-         // Set render targets before issuing any draw command.
-         // Note that Present() unbinds the back buffer if it is set as render target.
-         ITextureView* pRTV = m_pSwapChain->GetCurrentBackBufferRTV();
-         ITextureView* pDSV = m_pSwapChain->GetDepthBufferDSV();
-         m_pImmediateContext->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
- 
-         // Clear the back buffer
-         const float ClearColor[] = {0.350f, 0.350f, 0.350f, 1.0f};
-         // Let the engine perform required state transitions
-         m_pImmediateContext->ClearRenderTarget(pRTV, ClearColor, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-         m_pImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
- 
-         // Set the pipeline state in the immediate context
-         m_pImmediateContext->SetPipelineState(m_pPSO);
- 
-         // Typically we should now call CommitShaderResources(), however shaders in this example don't
-         // use any resources.
- 
-         DrawAttribs drawAttrs;
-         drawAttrs.NumVertices = 3; // Render 3 vertices
-         m_pImmediateContext->Draw(drawAttrs);
-     }
- 
+	  
      void Present()
      {
          m_pSwapChain->Present();
