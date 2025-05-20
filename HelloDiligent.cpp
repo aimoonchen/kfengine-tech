@@ -887,13 +887,13 @@ void main(in  PSInput  PSIn,
 		 LayoutElement LayoutElems[] =
 		 {
 			 // Attribute 0 - vertex position
-			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0},
+			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0, 8},
 			 // Attribute 1 - vertex tangent
-			 LayoutElement{1, 0, 4, VT_INT16, True, 142280},
+			 LayoutElement{1, 1, 4, VT_INT16, True, 142280, 8},
 			 // Attribute 2 - vertex color
-			 LayoutElement{2, 0, 4, VT_UINT8, True, 284560},
+			 LayoutElement{2, 2, 4, VT_UINT8, True, 284560, 4},
 			 // Attribute 3 - vertex uv
-			 LayoutElement{3, 0, 2, VT_INT16, True, 355700}
+			 LayoutElement{3, 3, 2, VT_INT16, True, 355700, 4}
 		 };
 		 // clang-format on
 		 PSOCreateInfo.GraphicsPipeline.InputLayout.LayoutElements = LayoutElems;
@@ -1011,9 +1011,9 @@ void main(in  PSInput  PSIn,
 		 }
 
 		 // Bind vertex and index buffers
-		 const Uint64 offset = 0;
-		 IBuffer* pBuffs[] = { m_CubeVertexBuffer };
-		 m_pImmediateContext->SetVertexBuffers(0, 1, pBuffs, &offset, RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
+		 const Uint64 offsets[] = {0, 0, 0, 0};
+		 IBuffer* pBuffs[] = { m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer };
+		 m_pImmediateContext->SetVertexBuffers(0, _countof(pBuffs), pBuffs, offsets, RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
 		 m_pImmediateContext->SetIndexBuffer(m_CubeIndexBuffer, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		 // Set the pipeline state
