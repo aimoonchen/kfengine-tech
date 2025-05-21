@@ -690,7 +690,7 @@ void main(in  PSInput  PSIn,
 
 		 // build all shaders
 		for (size_t i = 0; i < Program::SHADER_TYPE_COUNT; i++) {
-// 				 const ShaderStage stage = static_cast<ShaderStage>(i);
+			const ShaderStage stage = static_cast<ShaderStage>(i);
 // 				 GLenum glShaderType{};
 // 				 switch (stage) {
 // 				 case ShaderStage::VERTEX:
@@ -753,6 +753,21 @@ void main(in  PSInput  PSIn,
 				for (size_t i = 0; i < count; i++) {
 					shaderStrings[i] = sources[i].data();
 					lengths[i] = sources[i].size();
+				}
+				int fd = -1;
+				if (stage == ShaderStage::VERTEX) {
+					fd = open("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", O_WRONLY | O_CREAT | O_TRUNC);
+				}
+				else if (stage == ShaderStage::FRAGMENT) {
+					fd = open("D:\\Github\\kfengine-tech\\aiDefaultMat.frag", O_WRONLY | O_CREAT | O_TRUNC);
+				}
+				if (fd > 0) {
+					for (auto& it : sources) {
+						if (!it.empty()) {
+							write(fd, it.data(), it.size());
+						}
+					}
+					close(fd);
 				}
 			}
 		}
@@ -873,17 +888,6 @@ void main(in  PSInput  PSIn,
 // 			 LayoutElement{1, 0, 4, VT_FLOAT32, False}
 // 		 };
 
-// 		 LayoutElement LayoutElems[] =
-// 		 {
-// 			 // Attribute 0 - vertex position
-// 			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0},
-// 			 // Attribute 1 - vertex tangent
-// 			 LayoutElement{1, 1, 4, VT_INT16, True, 142280},
-// 			 // Attribute 2 - vertex color
-// 			 LayoutElement{2, 2, 4, VT_UINT8, True, 284560},
-// 			 // Attribute 3 - vertex uv
-// 			 LayoutElement{3, 3, 2, VT_INT16, True, 355700}
-// 		 };
 		 LayoutElement LayoutElems[] =
 		 {
 			 // Attribute 0 - vertex position
@@ -924,63 +928,6 @@ void main(in  PSInput  PSIn,
 // 		 CreateIndexBuffer();
 		 InitFilament();
 		 //LoadTexture();
-		 return;
-         // Pipeline state object encompasses configuration of all GPU stages
- 
-         GraphicsPipelineStateCreateInfo PSOCreateInfo;
- 
-         // Pipeline state name is used by the engine to report issues.
-         // It is always a good idea to give objects descriptive names.
-         PSOCreateInfo.PSODesc.Name = "Simple triangle PSO";
- 
-         // This is a graphics pipeline
-         PSOCreateInfo.PSODesc.PipelineType = PIPELINE_TYPE_GRAPHICS;
- 
-         // clang-format off
-         // This tutorial will render to a single render target
-         PSOCreateInfo.GraphicsPipeline.NumRenderTargets             = 1;
-         // Set render target format which is the format of the swap chain's color buffer
-         PSOCreateInfo.GraphicsPipeline.RTVFormats[0]                = m_pSwapChain->GetDesc().ColorBufferFormat;
-         // Use the depth buffer format from the swap chain
-         PSOCreateInfo.GraphicsPipeline.DSVFormat                    = m_pSwapChain->GetDesc().DepthBufferFormat;
-         // Primitive topology defines what kind of primitives will be rendered by this pipeline state
-         PSOCreateInfo.GraphicsPipeline.PrimitiveTopology            = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-         // No back face culling for this tutorial
-         PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode      = CULL_MODE_NONE;
-         // Disable depth testing
-         PSOCreateInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = False;
-         // clang-format on
- 
-         ShaderCreateInfo ShaderCI;
-         // Tell the system that the shader source code is in HLSL.
-         // For OpenGL, the engine will convert this into GLSL under the hood
-         ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_HLSL;
-         // OpenGL backend requires emulated combined HLSL texture samplers (g_Texture + g_Texture_sampler combination)
-         ShaderCI.Desc.UseCombinedTextureSamplers = true;
-         // Create a vertex shader
-         RefCntAutoPtr<IShader> pVS;
-         {
-             ShaderCI.Desc.ShaderType = SHADER_TYPE_VERTEX;
-             ShaderCI.EntryPoint      = "main";
-             ShaderCI.Desc.Name       = "Triangle vertex shader";
-             ShaderCI.Source          = VSSource;
-             m_pDevice->CreateShader(ShaderCI, &pVS);
-         }
- 
-         // Create a pixel shader
-         RefCntAutoPtr<IShader> pPS;
-         {
-             ShaderCI.Desc.ShaderType = SHADER_TYPE_PIXEL;
-             ShaderCI.EntryPoint      = "main";
-             ShaderCI.Desc.Name       = "Triangle pixel shader";
-             ShaderCI.Source          = PSSource;
-             m_pDevice->CreateShader(ShaderCI, &pPS);
-         }
- 
-         // Finally, create the pipeline state
-         PSOCreateInfo.pVS = pVS;
-         PSOCreateInfo.pPS = pPS;
-         m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
      }
  
 	 void Render()
