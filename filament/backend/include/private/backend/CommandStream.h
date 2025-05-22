@@ -74,12 +74,12 @@ public:
     CircularBuffer const& getCircularBuffer() const noexcept { return mCurrentBuffer; }
 
 	bool isWorkaroundNeeded(Workaround) { return false; }
-	FeatureLevel getFeatureLevel() { return FeatureLevel::FEATURE_LEVEL_1; }
+	FeatureLevel getFeatureLevel() { return FeatureLevel::FEATURE_LEVEL_3; }
 	math::float2 getClipSpaceParams() { return math::float2{ 1.0f, 0.0f }; }
 	uint8_t getMaxDrawBuffers() {
         return 16;// MRT::MAX_SUPPORTED_RENDER_TARGET_COUNT;
 	}
-	size_t getMaxUniformBufferSize() { return 16384u; }
+	size_t getMaxUniformBufferSize() { return 65536/*16384u*/; }
 	size_t getMaxTextureSize(SamplerType target) {
 		// NoopDriver is being actively used for other purposes.  This needs to be resolved before we
 		// can change it to 2048. b/406832484

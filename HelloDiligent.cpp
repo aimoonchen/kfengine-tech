@@ -607,27 +607,14 @@ void main(in  PSInput  PSIn,
          m_pDevice->CreateBuffer(VertBuffDesc, &VBData, &m_CubeVertexBuffer);
          free(data);
          close(fd);
-
-		 auto fm = downcast(mi)->getMaterial();
+		 
 		 Variant variant;
 		 variant.setDirectionalLighting(true/*view.hasDirectionalLighting()*/);
 		 variant.setDynamicLighting(false/*view.hasDynamicLighting()*/);
 		 variant.setFog(false/*view.hasFog()*/);
 		 variant.setVsm(false/*view.hasShadowing() && view.getShadowType() != ShadowType::PCF*/);
 		 variant.setStereo(false/*view.hasStereo()*/);
-		 //
-		 assert_invariant(variant == Variant::filterVariant(variant, isVariantLit()));
 
-		 assert_invariant(!Variant::isReserved(variant));
-
-		 Variant const vertexVariant = Variant::filterVariantVertex(variant);
-		 Variant const fragmentVariant = Variant::filterVariantFragment(variant);
-		 fm->prepareProgram(variant);
-		 auto program = fm->getProgram(variant);
-// 		 backend::Program pb{ fm->getProgramWithVariants(variant, vertexVariant, fragmentVariant) };
-// 		 pb.priorityQueue(priorityQueue);
-// 		 pb.multiview(mEngine.getConfig().stereoscopicType == StereoscopicType::MULTIVIEW && Variant::isStereoVariant(variant));
-		 //
 		 downcast(mi)->getMaterial()->prepareProgram(variant);
 	 }
 	 // split shader source code in three:
@@ -657,17 +644,20 @@ void main(in  PSInput  PSIn,
 		 return { version, prolog, body };
 	 }
 
+	 static inline std::string to_string(bool b) noexcept { return b ? "true" : "false"; }
+	 static inline std::string to_string(int i) noexcept { return std::to_string(i); }
+	 static inline std::string to_string(float f) noexcept { return "float(" + std::to_string(f) + ")"; }
 	 void CreateFilamentProgram(filament::backend::Program&& program)
 	 {
 		 using namespace filament::backend;
 		 // opengl
-		 auto shadersSource = std::move(program.getShadersSource());
+		 Program::ShaderSource shadersSource = std::move(program.getShadersSource());
 		 utils::FixedCapacityVector<Program::SpecializationConstant> const& specializationConstants = program.getSpecializationConstants();
 		 bool multiview = false;
 
 		 auto appendSpecConstantString = +[](std::string& s, Program::SpecializationConstant const& sc) {
 			 s += "#define SPIRV_CROSS_CONSTANT_ID_" + std::to_string(sc.id) + ' ';
-			 s += std::visit([](auto&& arg) { return std::to_string(arg); }, sc.value);
+			 s += std::visit([](auto&& arg) { return to_string(arg); }, sc.value);
 			 s += '\n';
 			 return s;
 			 };
