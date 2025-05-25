@@ -85,6 +85,8 @@
 #include <details/Engine.h>
 #include "details/Material.h"
 #include "details/MaterialInstance.h"
+#include "ds/ColorPassDescriptorSet.h"
+#include "ds/TypedUniformBuffer.h"
 #include <filameshio/MeshReader.h>
 #include <fcntl.h>
 #if !defined(WIN32)
@@ -230,7 +232,11 @@ void main(in  PSInput  PSIn,
  class Tutorial00App
  {
  public:
-     Tutorial00App()
+     Tutorial00App(filament::FEngine& engine)
+		 :
+		 mEngine(engine),
+		 mUniforms(engine.getDriverApi()),
+		 mColorPassDescriptorSet(engine, mUniforms)
      {
      }
  
@@ -514,14 +520,12 @@ void main(in  PSInput  PSIn,
 	 {
 		 using namespace filament;
 		 //     Engine::Config engineConfig = {};
-		 Engine* engine = FEngine::create();
-
 		 int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
 		 size_t size = fileSize(fd);
 		 char* data = (char*)malloc(size);
 		 read(fd, data, size);
 
-		 auto material = Material::Builder().package(data, size).build(*engine);
+		 auto material = Material::Builder().package(data, size).build(mEngine);
 		 auto mi = material->createInstance();
 		 mi->setParameter("baseColor", RgbType::LINEAR, math::float3{ 0.8 });
 		 mi->setParameter("metallic", 1.0f);
@@ -615,6 +619,7 @@ void main(in  PSInput  PSIn,
 		 variant.setVsm(false/*view.hasShadowing() && view.getShadowType() != ShadowType::PCF*/);
 		 variant.setStereo(false/*view.hasStereo()*/);
 
+		 m_filament_ready = true;
 		 downcast(mi)->getMaterial()->prepareProgram(variant);
 	 }
 	 // split shader source code in three:
@@ -649,6 +654,9 @@ void main(in  PSInput  PSIn,
 	 static inline std::string to_string(float f) noexcept { return "float(" + std::to_string(f) + ")"; }
 	 void CreateFilamentProgram(filament::backend::Program&& program)
 	 {
+		 if (!m_filament_ready) {
+			 return;
+		 }
 		 using namespace filament::backend;
 		 // opengl
 		 Program::ShaderSource shadersSource = std::move(program.getShadersSource());
@@ -1078,6 +1086,10 @@ void main(in  PSInput  PSIn,
 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
 	 float4x4                              m_WorldViewProjMatrix;
 	 bool m_ConvertPSOutputToGamma = false;
+	 bool m_filament_ready = false;
+	 mutable filament::TypedUniformBuffer<filament::PerViewUib> mUniforms;
+	 mutable filament::ColorPassDescriptorSet mColorPassDescriptorSet;
+	 filament::FEngine& mEngine;
  };
  
  std::unique_ptr<Tutorial00App> g_pTheApp;
@@ -1134,7 +1146,8 @@ void main(in  PSInput  PSIn,
      _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
  #endif
  
-     g_pTheApp.reset(new Tutorial00App);
+	 static filament::FEngine* fengine = (filament::FEngine*)filament::FEngine::create();
+     g_pTheApp.reset(new Tutorial00App(*fengine));
  
      LPSTR cmdLine = GetCommandLineA();
      if (!g_pTheApp->ProcessCommandLine(cmdLine))

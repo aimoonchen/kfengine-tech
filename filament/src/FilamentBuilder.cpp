@@ -18,6 +18,8 @@
 #include <details/Engine.h>
 #include <details/VertexBuffer.h>
 #include <details/Material.h>
+#include <details/IndirectLight.h>
+#include <components/LightManager.h>
 #include <backend/DriverEnums.h>
 #include <private/backend/Driver.h>
 #include <algorithm>
@@ -58,7 +60,9 @@ static size_t fileSize(int fd) {
 	return filesize;
 }
 
-FEngine::FEngine() {
+FEngine::FEngine()
+	:mLightManager(*this)
+{
 	int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
 	size_t size = fileSize(fd);
 	char* data = (char*)malloc(size);
@@ -115,6 +119,13 @@ FMaterial* FEngine::createMaterial(const Material::Builder& builder,
 	return create(mMaterials, builder, std::move(materialParser));
 }
 
+void FEngine::createLight(const LightManager::Builder& builder, utils::Entity const entity) {
+	mLightManager.create(builder, entity);
+}
+
+FIndirectLight* FEngine::createIndirectLight(const IndirectLight::Builder& builder) noexcept {
+	return create(mIndirectLights, builder);
+}
 
 FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
 	const FMaterialInstance* other, const char* name) noexcept {

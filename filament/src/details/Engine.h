@@ -27,7 +27,7 @@
 #include "HwVertexBufferInfoFactory.h"
 // 
 // #include "components/CameraManager.h"
-// #include "components/LightManager.h"
+#include "components/LightManager.h"
 // #include "components/TransformManager.h"
 // #include "components/RenderableManager.h"
 
@@ -54,7 +54,7 @@
 
 //#include <filament/ColorGrading.h>
 #include <filament/Engine.h>
-//#include <filament/IndirectLight.h>
+#include <filament/IndirectLight.h>
 #include <filament/Material.h>
 // #include <filament/Skybox.h>
 // #include <filament/Stream.h>
@@ -169,7 +169,7 @@ public:
 
     const FMaterial* getDefaultMaterial() const noexcept { return mDefaultMaterial; }
     const FMaterial* getSkyboxMaterial() const noexcept;
-//     const FIndirectLight* getDefaultIndirectLight() const noexcept { return mDefaultIbl; }
+    const FIndirectLight* getDefaultIndirectLight() const noexcept { return mDefaultIbl; }
     const FTexture* getDummyCubemap() const noexcept { return mDefaultIblTexture; }
 //     const FColorGrading* getDefaultColorGrading() const noexcept { return mDefaultColorGrading; }
 //     FMorphTargetBuffer* getDummyMorphTargetBuffer() const { return mDummyMorphTargetBuffer; }
@@ -228,15 +228,15 @@ public:
 //     FRenderableManager const& getRenderableManager() const noexcept {
 //         return mRenderableManager;
 //     }
-// 
-//     FLightManager& getLightManager() noexcept {
-//         return mLightManager;
-//     }
-// 
-//     FLightManager const& getLightManager() const noexcept {
-//         return mLightManager;
-//     }
-// 
+
+    FLightManager& getLightManager() noexcept {
+        return mLightManager;
+    }
+
+    FLightManager const& getLightManager() const noexcept {
+        return mLightManager;
+    }
+
 //     FCameraManager& getCameraManager() noexcept {
 //         return mCameraManager;
 //     }
@@ -306,7 +306,7 @@ public:
 //     FSkinningBuffer* createSkinningBuffer(const SkinningBuffer::Builder& builder) noexcept;
 //     FMorphTargetBuffer* createMorphTargetBuffer(const MorphTargetBuffer::Builder& builder) noexcept;
 //     FInstanceBuffer* createInstanceBuffer(const InstanceBuffer::Builder& builder) noexcept;
-//     FIndirectLight* createIndirectLight(const IndirectLight::Builder& builder) noexcept;
+    FIndirectLight* createIndirectLight(const IndirectLight::Builder& builder) noexcept;
     FMaterial* createMaterial(const Material::Builder& builder, std::unique_ptr<MaterialParser> materialParser) noexcept;
 //     FTexture* createTexture(const Texture::Builder& builder) noexcept;
 //     FSkybox* createSkybox(const Skybox::Builder& builder) noexcept;
@@ -315,8 +315,8 @@ public:
 //     FRenderTarget* createRenderTarget(const RenderTarget::Builder& builder) noexcept;
 // 
 //     void createRenderable(const RenderableManager::Builder& builder, utils::Entity entity);
-//     void createLight(const LightManager::Builder& builder, utils::Entity entity);
-// 
+    void createLight(const LightManager::Builder& builder, utils::Entity entity);
+
 //     FRenderer* createRenderer() noexcept;
 
     FMaterialInstance* createMaterialInstance(const FMaterial* material,
@@ -560,7 +560,7 @@ private:
 //     utils::EntityManager& mEntityManager;
 //     FRenderableManager mRenderableManager;
 //     FTransformManager mTransformManager;
-//     FLightManager mLightManager;
+    FLightManager mLightManager;
 //     FCameraManager mCameraManager;
 //     std::shared_ptr<ResourceAllocatorDisposer> mResourceAllocatorDisposer;
     HwVertexBufferInfoFactory mHwVertexBufferInfoFactory;
@@ -580,7 +580,7 @@ private:
 //     ResourceList<FMorphTargetBuffer> mMorphTargetBuffers{ "MorphTargetBuffer" };
 //     ResourceList<FInstanceBuffer> mInstanceBuffers{ "InstanceBuffer" };
     ResourceList<FVertexBuffer> mVertexBuffers{ "VertexBuffer" };
-//     ResourceList<FIndirectLight> mIndirectLights{ "IndirectLight" };
+    ResourceList<FIndirectLight> mIndirectLights{ "IndirectLight" };
     ResourceList<FMaterial> mMaterials{ "Material" };
 //     ResourceList<FTexture> mTextures{ "Texture" };
 //     ResourceList<FSkybox> mSkyboxes{ "Skybox" };
@@ -620,7 +620,7 @@ private:
 //     mutable FSwapChain* mUnprotectedDummySwapchain = nullptr;
 
     mutable FTexture* mDefaultIblTexture = nullptr;
-//     mutable FIndirectLight* mDefaultIbl = nullptr;
+    mutable FIndirectLight* mDefaultIbl = nullptr;
 // 
 //     mutable FColorGrading* mDefaultColorGrading = nullptr;
 //     FMorphTargetBuffer* mDummyMorphTargetBuffer = nullptr;
