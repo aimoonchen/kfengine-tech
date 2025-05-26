@@ -61,7 +61,8 @@ static size_t fileSize(int fd) {
 }
 
 FEngine::FEngine()
-	:mLightManager(*this)
+	: mLightManager(*this)
+	, mCameraManager(*this)
 {
 	int fd = open("D:\\filament-1.59.4\\samples\\materials\\aiDefaultMat.filamat", O_RDONLY);
 	size_t size = fileSize(fd);
@@ -87,6 +88,11 @@ FEngine::FEngine()
 		break;
 	}
 	mDefaultMaterial = downcast(defaultMaterialBuilder.build(*this));
+
+	constexpr float sh[9 * 3] = { 0.0f };
+	mDefaultIbl = downcast(IndirectLight::Builder()
+		.irradiance(3, reinterpret_cast<const math::float3*>(sh))
+		.build(*this));
 }
 Engine* FEngine::create() {
 	FEngine* instance = new FEngine();
@@ -121,6 +127,10 @@ FMaterial* FEngine::createMaterial(const Material::Builder& builder,
 
 void FEngine::createLight(const LightManager::Builder& builder, utils::Entity const entity) {
 	mLightManager.create(builder, entity);
+}
+
+FCamera* FEngine::createCamera(utils::Entity const entity) noexcept {
+	return mCameraManager.create(*this, entity);
 }
 
 FIndirectLight* FEngine::createIndirectLight(const IndirectLight::Builder& builder) noexcept {

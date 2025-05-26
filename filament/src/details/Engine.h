@@ -26,7 +26,7 @@
 #include "HwDescriptorSetLayoutFactory.h"
 #include "HwVertexBufferInfoFactory.h"
 // 
-// #include "components/CameraManager.h"
+#include "components/CameraManager.h"
 #include "components/LightManager.h"
 // #include "components/TransformManager.h"
 // #include "components/RenderableManager.h"
@@ -34,7 +34,7 @@
 #include "ds/DescriptorSetLayout.h"
 
 #include "details/BufferObject.h"
-// #include "details/Camera.h"
+#include "details/Camera.h"
 // #include "details/ColorGrading.h"
 // #include "details/DebugRegistry.h"
 // #include "details/Fence.h"
@@ -237,10 +237,10 @@ public:
         return mLightManager;
     }
 
-//     FCameraManager& getCameraManager() noexcept {
-//         return mCameraManager;
-//     }
-// 
+    FCameraManager& getCameraManager() noexcept {
+        return mCameraManager;
+    }
+
 //     FTransformManager& getTransformManager() noexcept {
 //         return mTransformManager;
 //     }
@@ -248,10 +248,10 @@ public:
 //     utils::EntityManager& getEntityManager() noexcept {
 //         return mEntityManager;
 //     }
-// 
-//     HeapAllocatorArena& getHeapAllocator() noexcept {
-//         return mHeapAllocator;
-//     }
+
+    HeapAllocatorArena& getHeapAllocator() noexcept {
+        return mHeapAllocator;
+    }
 
     Backend getBackend() const noexcept {
         return mBackend;
@@ -330,8 +330,8 @@ public:
 //     FFence* createFence() noexcept;
 //     FSwapChain* createSwapChain(void* nativeWindow, uint64_t flags) noexcept;
 //     FSwapChain* createSwapChain(uint32_t width, uint32_t height, uint64_t flags) noexcept;
-// 
-//     FCamera* createCamera(utils::Entity entity) noexcept;
+
+    FCamera* createCamera(utils::Entity entity) noexcept;
 //     FCamera* getCameraComponent(utils::Entity entity) noexcept;
 //     void destroyCameraComponent(utils::Entity entity) noexcept;
 // 
@@ -561,7 +561,7 @@ private:
 //     FRenderableManager mRenderableManager;
 //     FTransformManager mTransformManager;
     FLightManager mLightManager;
-//     FCameraManager mCameraManager;
+    FCameraManager mCameraManager;
 //     std::shared_ptr<ResourceAllocatorDisposer> mResourceAllocatorDisposer;
     HwVertexBufferInfoFactory mHwVertexBufferInfoFactory;
     HwDescriptorSetLayoutFactory mHwDescriptorSetLayoutFactory;

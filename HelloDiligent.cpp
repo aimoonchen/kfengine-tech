@@ -228,6 +228,12 @@ void main(in  PSInput  PSIn,
 // }
 //  )";
 
+ extern filament::FEngine* g_FilamentEngine;
+ extern filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet;
+ namespace filament {
+	 CameraInfo computeCameraInfo(FEngine& engine);
+	 void prepareLighting(filament::FEngine& engine, filament::CameraInfo const& cameraInfo);
+ }
 
  class Tutorial00App
  {
@@ -238,6 +244,7 @@ void main(in  PSInput  PSIn,
 		 mUniforms(engine.getDriverApi()),
 		 mColorPassDescriptorSet(engine, mUniforms)
      {
+		 g_mColorPassDescriptorSet = &mColorPassDescriptorSet;
      }
  
      ~Tutorial00App()
@@ -621,6 +628,12 @@ void main(in  PSInput  PSIn,
 
 		 m_filament_ready = true;
 		 downcast(mi)->getMaterial()->prepareProgram(variant);
+
+		 //
+		 filament::CameraInfo cameraInfo = computeCameraInfo(mEngine);
+		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
+		 prepareLighting(mEngine, cameraInfo);
+
 	 }
 	 // split shader source code in three:
 // - the version line
@@ -1146,8 +1159,9 @@ void main(in  PSInput  PSIn,
      _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
  #endif
  
-	 static filament::FEngine* fengine = (filament::FEngine*)filament::FEngine::create();
-     g_pTheApp.reset(new Tutorial00App(*fengine));
+	 g_FilamentEngine = (filament::FEngine*)filament::FEngine::create();
+	 
+     g_pTheApp.reset(new Tutorial00App(*g_FilamentEngine));
  
      LPSTR cmdLine = GetCommandLineA();
      if (!g_pTheApp->ProcessCommandLine(cmdLine))
