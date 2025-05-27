@@ -82,6 +82,7 @@
 #include <filament/Material.h>
 #include <filament/MaterialInstance.h>
 #include <filament/VertexBuffer.h>
+#include <filament/Options.h>
 #include <details/Engine.h>
 #include "details/Material.h"
 #include "details/MaterialInstance.h"
@@ -634,6 +635,36 @@ void main(in  PSInput  PSIn,
 		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
 		 prepareLighting(mEngine, cameraInfo);
 
+		 mColorPassDescriptorSet.prepareTime(mEngine, math::float4{0.0f, 0.0f, 0.0f, 0.0f}/*userTime*/);
+		 FogOptions mFogOptions;
+		 math::mat4 fogTransform;
+		 mColorPassDescriptorSet.prepareFog(mEngine, cameraInfo, fogTransform, mFogOptions, mEngine.getDefaultIndirectLight()/*scene->getIndirectLight()*/);
+		 TemporalAntiAliasingOptions mTemporalAntiAliasingOptions;
+		 mColorPassDescriptorSet.prepareTemporalNoise(mEngine, mTemporalAntiAliasingOptions);
+		 mColorPassDescriptorSet.prepareBlending(false/*needsAlphaChannel*/);
+		 std::array<math::float4, 4> mMaterialGlobals = { {
+															{ 0, 0, 0, 1 },
+															{ 0, 0, 0, 1 },
+															{ 0, 0, 0, 1 },
+															{ 0, 0, 0, 1 },
+													} };
+		 mColorPassDescriptorSet.prepareMaterialGlobals(mMaterialGlobals);
+		 //
+		 math::float2 scale{1.0f, 1.0f};
+		 TemporalAntiAliasingOptions taaOptions;
+		 DynamicResolutionOptions dsrOptions;
+		 float bias = 0.0f;
+		 math::float2 derivativesScale{ 1.0f };
+		 if (dsrOptions.enabled && dsrOptions.quality >= QualityLevel::HIGH) {
+			 bias = std::log2(std::min(scale.x, scale.y));
+		 }
+		 if (taaOptions.enabled) {
+			 bias += taaOptions.lodBias;
+			 if (taaOptions.upscaling) {
+				 derivativesScale = 0.5f;
+			 }
+		 }
+		 mColorPassDescriptorSet.prepareLodBias(bias, derivativesScale);
 	 }
 	 // split shader source code in three:
 // - the version line
