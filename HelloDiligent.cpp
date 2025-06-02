@@ -232,6 +232,8 @@ void main(in  PSInput  PSIn,
  extern filament::FEngine* g_FilamentEngine;
  extern filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet;
  namespace filament {
+
+	 extern FScene g_scene;
 	 CameraInfo computeCameraInfo(FEngine& engine);
 	 void prepareLighting(filament::FEngine& engine, filament::CameraInfo const& cameraInfo);
  }
@@ -633,8 +635,17 @@ void main(in  PSInput  PSIn,
 		 //
 		 filament::CameraInfo cameraInfo = computeCameraInfo(mEngine);
 		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
-		 prepareLighting(mEngine, cameraInfo);
 
+		 // prepareShadowing
+		 
+		 // PerRenderableUib
+// 		 mRenderableUbh = driver.createBufferObject(mRenderableUBOSize + sizeof(PerRenderableUib), BufferObjectBinding::UNIFORM, BufferUsage::DYNAMIC);
+// 		 scene->updateUBOs(merged, mRenderableUbh);
+// 		 g_scene.prepare();
+// 		 g_scene.prepareVisibleRenderables();
+		 //
+		 prepareLighting(mEngine, cameraInfo);
+		 //
 		 mColorPassDescriptorSet.prepareTime(mEngine, math::float4{0.0f, 0.0f, 0.0f, 0.0f}/*userTime*/);
 		 FogOptions mFogOptions;
 		 math::mat4 fogTransform;
@@ -649,7 +660,7 @@ void main(in  PSInput  PSIn,
 															{ 0, 0, 0, 1 },
 													} };
 		 mColorPassDescriptorSet.prepareMaterialGlobals(mMaterialGlobals);
-		 //
+		 //prepareUpscaler
 		 math::float2 scale{1.0f, 1.0f};
 		 TemporalAntiAliasingOptions taaOptions;
 		 DynamicResolutionOptions dsrOptions;
@@ -796,20 +807,25 @@ void main(in  PSInput  PSIn,
 					shaderStrings[i] = sources[i].data();
 					lengths[i] = sources[i].size();
 				}
-				int fd = -1;
+				std::string* outstring;
+				FILE* fd = nullptr;
+				//std::ofstream file("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", std::ios::out | std::ios::trunc);
 				if (stage == ShaderStage::VERTEX) {
-					fd = open("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", O_WRONLY | O_CREAT | O_TRUNC);
+					fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", "w+");
+					outstring = &mVSSource;
 				}
 				else if (stage == ShaderStage::FRAGMENT) {
-					fd = open("D:\\Github\\kfengine-tech\\aiDefaultMat.frag", O_WRONLY | O_CREAT | O_TRUNC);
+					fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat.frag", "w+");
+					outstring = &mPSSource;
 				}
-				if (fd > 0) {
+				if (fd) {
 					for (auto& it : sources) {
 						if (!it.empty()) {
-							write(fd, it.data(), it.size());
+							fwrite(it.data(), it.size(), 1, fd);
+							*outstring += it.data();
 						}
 					}
-					close(fd);
+					fclose(fd);
 				}
 			}
 		}
@@ -896,7 +912,8 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.EntryPoint = "main";
 			 ShaderCI.Desc.Name = "Cube VS";
 			 //ShaderCI.FilePath = "cube.vsh";
-			 ShaderCI.Source = VSSource;
+			 ShaderCI.Source = mVSSource.data();// VSSource;//
+			 ShaderCI.SourceLength = mVSSource.length();
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
@@ -916,7 +933,8 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.EntryPoint = "main";
 			 ShaderCI.Desc.Name = "Cube PS";
 			 //ShaderCI.FilePath = "cube.psh";
-			 ShaderCI.Source = PSSource;
+			 ShaderCI.Source = mPSSource.data();// PSSource;//
+			 ShaderCI.SourceLength = mPSSource.length();
 			 m_pDevice->CreateShader(ShaderCI, &pPS);
 		 }
 
@@ -965,11 +983,13 @@ void main(in  PSInput  PSIn,
      void CreateResources()
      {
          //InitFilament();
-		 CreatePipelineState();
+		 //CreatePipelineState();
 // 		 CreateVertexBuffer();
 // 		 CreateIndexBuffer();
 		 InitFilament();
 		 //LoadTexture();
+
+		 CreatePipelineState();
      }
  
 	 void Render()
@@ -1134,13 +1154,17 @@ void main(in  PSInput  PSIn,
 	 mutable filament::TypedUniformBuffer<filament::PerViewUib> mUniforms;
 	 mutable filament::ColorPassDescriptorSet mColorPassDescriptorSet;
 	 filament::FEngine& mEngine;
+	 std::string mVSSource;
+	 std::string mPSSource;
  };
  
  std::unique_ptr<Tutorial00App> g_pTheApp;
 
  void DiligentCreateProgram(filament::backend::Program&& program)
  {
-	 g_pTheApp->CreateFilamentProgram(std::move(program));
+	 if (g_pTheApp) {
+		 g_pTheApp->CreateFilamentProgram(std::move(program));
+	 }
  }
 
  class Timer

@@ -63,12 +63,12 @@ FCamera* FCameraManager::create(FEngine& engine, Entity entity) {
     }
 
     // add the Camera component to the entity
-    Instance const i = manager.addComponent(entity);
+    Instance const i = 0;// manager.addComponent(entity);
 
     // For historical reasons, FCamera must not move. So the CameraManager stores a pointer.
     FCamera* const camera = engine.getHeapAllocator().make<FCamera>(engine, entity);
-    manager.elementAt<CAMERA>(i) = camera;
-    manager.elementAt<OWNS_TRANSFORM_COMPONENT>(i) = false;
+//     manager.elementAt<CAMERA>(i) = camera;
+//     manager.elementAt<OWNS_TRANSFORM_COMPONENT>(i) = false;
 
     // Make sure we have a transform component
 //     FTransformManager& tcm = engine.getTransformManager();
