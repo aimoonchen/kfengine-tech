@@ -822,7 +822,7 @@ void main(in  PSInput  PSIn,
 					for (auto& it : sources) {
 						if (!it.empty()) {
 							fwrite(it.data(), it.size(), 1, fd);
-							*outstring += it.data();
+							outstring->append(it.data(), it.size());
 						}
 					}
 					fclose(fd);
@@ -914,6 +914,7 @@ void main(in  PSInput  PSIn,
 			 //ShaderCI.FilePath = "cube.vsh";
 			 ShaderCI.Source = mVSSource.data();// VSSource;//
 			 ShaderCI.SourceLength = mVSSource.length();
+			 printf("%s\n", mVSSource.c_str());
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
@@ -1214,7 +1215,9 @@ void main(in  PSInput  PSIn,
  #if defined(_DEBUG) || defined(DEBUG)
      _CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
  #endif
- 
+	 AllocConsole();
+	 freopen("CONOUT$", "w", stdout);
+	 freopen("CONIN$", "r", stdin);
 	 g_FilamentEngine = (filament::FEngine*)filament::FEngine::create();
 	 
      g_pTheApp.reset(new Tutorial00App(*g_FilamentEngine));
@@ -1281,8 +1284,10 @@ void main(in  PSInput  PSIn,
      }
  
      g_pTheApp.reset();
- 
-     return (int)msg.wParam;
+
+	 FreeConsole();
+     
+	 return (int)msg.wParam;
  }
  
  // Called every time the NativeNativeAppBase receives a message
