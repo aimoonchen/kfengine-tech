@@ -885,7 +885,7 @@ void main(in  PSInput  PSIn,
 		 ShaderCreateInfo ShaderCI;
 		 // Tell the system that the shader source code is in HLSL.
 		 // For OpenGL, the engine will convert this into GLSL under the hood.
-		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_HLSL;
+		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_GLSL_VERBATIM;// SHADER_SOURCE_LANGUAGE_HLSL;
 
 		 // OpenGL backend requires emulated combined HLSL texture samplers (g_Texture + g_Texture_sampler combination)
 		 ShaderCI.Desc.UseCombinedTextureSamplers = true;
@@ -917,13 +917,13 @@ void main(in  PSInput  PSIn,
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
-			 BufferDesc CBDesc;
-			 CBDesc.Name = "VS constants CB";
-			 CBDesc.Size = sizeof(float4x4);
-			 CBDesc.Usage = USAGE_DYNAMIC;
-			 CBDesc.BindFlags = BIND_UNIFORM_BUFFER;
-			 CBDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
-			 m_pDevice->CreateBuffer(CBDesc, nullptr, &m_VSConstants);
+// 			 BufferDesc CBDesc;
+// 			 CBDesc.Name = "VS constants CB";
+// 			 CBDesc.Size = sizeof(float4x4);
+// 			 CBDesc.Usage = USAGE_DYNAMIC;
+// 			 CBDesc.BindFlags = BIND_UNIFORM_BUFFER;
+// 			 CBDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
+// 			 m_pDevice->CreateBuffer(CBDesc, nullptr, &m_VSConstants);
 		 }
 
 		 // Create a pixel shader
@@ -971,6 +971,7 @@ void main(in  PSInput  PSIn,
 
 		 m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
 
+		 auto srv = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "FrameUniforms");
 		 // Since we did not explicitly specify the type for 'Constants' variable, default
 		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
 		 // change and are bound directly through the pipeline state object.
