@@ -914,17 +914,25 @@ void main(in  PSInput  PSIn,
 			 //ShaderCI.FilePath = "cube.vsh";
 			 ShaderCI.Source = mVSSource.data();// VSSource;//
 			 ShaderCI.SourceLength = mVSSource.length();
-			 printf("%s\n", mVSSource.c_str());
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
-// 			 BufferDesc CBDesc;
-// 			 CBDesc.Name = "VS constants CB";
-// 			 CBDesc.Size = sizeof(float4x4);
-// 			 CBDesc.Usage = USAGE_DYNAMIC;
-// 			 CBDesc.BindFlags = BIND_UNIFORM_BUFFER;
-// 			 CBDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
-// 			 m_pDevice->CreateBuffer(CBDesc, nullptr, &m_VSConstants);
+			 BufferDesc perRenderableDesc;
+			 perRenderableDesc.Name = "ObjectUniforms";
+			 perRenderableDesc.Size = sizeof(filament::PerRenderableData);// sizeof(PerRenderableUib);
+			 perRenderableDesc.Usage = USAGE_DYNAMIC;
+			 perRenderableDesc.BindFlags = BIND_UNIFORM_BUFFER;
+			 perRenderableDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
+			 m_pDevice->CreateBuffer(perRenderableDesc, nullptr, &m_VSPerRenderableConstants);
+			 
+
+			 BufferDesc perViewDesc;
+			 perViewDesc.Name = "FrameUniforms";
+			 perViewDesc.Size = sizeof(filament::PerViewUib);
+			 perViewDesc.Usage = USAGE_DYNAMIC;
+			 perViewDesc.BindFlags = BIND_UNIFORM_BUFFER;
+			 perViewDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
+			 m_pDevice->CreateBuffer(perViewDesc, nullptr, &m_VSPerViewConstants);
 		 }
 
 		 // Create a pixel shader
@@ -937,6 +945,15 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.Source = mPSSource.data();// PSSource;//
 			 ShaderCI.SourceLength = mPSSource.length();
 			 m_pDevice->CreateShader(ShaderCI, &pPS);
+
+			 BufferDesc lightDesc;
+			 lightDesc.Name = "LightsUniforms";
+			 lightDesc.Size = filament::CONFIG_MAX_LIGHT_COUNT * sizeof(filament::LightsUib);
+			 lightDesc.Usage = USAGE_DYNAMIC;
+			 lightDesc.BindFlags = BIND_UNIFORM_BUFFER;
+			 lightDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
+			 m_pDevice->CreateBuffer(lightDesc, nullptr, &m_PSLightConstants);
+
 		 }
 
 		 // clang-format off
@@ -972,11 +989,13 @@ void main(in  PSInput  PSIn,
 
 		 m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
 
-		 auto srv = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "FrameUniforms");
+		 auto objectUniformsSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "ObjectUniforms");
+		 auto frameUniformsSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "FrameUniforms");
+		 auto materialParamsSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "MaterialParams");
 		 // Since we did not explicitly specify the type for 'Constants' variable, default
 		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
 		 // change and are bound directly through the pipeline state object.
-		 m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
+		 //m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
 
 		 // Create a shader resource binding object and bind all static resources in it
 		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
@@ -1147,7 +1166,9 @@ void main(in  PSInput  PSIn,
 	 //
 	 RefCntAutoPtr<IBuffer>                m_CubeVertexBuffer;
 	 RefCntAutoPtr<IBuffer>                m_CubeIndexBuffer;
-	 RefCntAutoPtr<IBuffer>                m_VSConstants;
+	 RefCntAutoPtr<IBuffer>                m_VSPerRenderableConstants;
+	 RefCntAutoPtr<IBuffer>                m_VSPerViewConstants;
+	 RefCntAutoPtr<IBuffer>                m_PSLightConstants;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV;
 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
 	 float4x4                              m_WorldViewProjMatrix;

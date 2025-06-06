@@ -544,7 +544,7 @@ private:
     backend::Driver* mDriver = nullptr;
     backend::Handle<backend::HwRenderTarget> mDefaultRenderTarget;
 
-    Backend mBackend = Backend::OPENGL/*Backend::VULKAN*/;
+    Backend mBackend = Backend::OPENGL;//Backend::VULKAN;// 
     FeatureLevel mActiveFeatureLevel = FeatureLevel::FEATURE_LEVEL_2;
     Platform* mPlatform = nullptr;
     bool mOwnPlatform = false;
