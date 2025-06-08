@@ -923,7 +923,7 @@ void main(in  PSInput  PSIn,
 			 perRenderableDesc.Usage = USAGE_DYNAMIC;
 			 perRenderableDesc.BindFlags = BIND_UNIFORM_BUFFER;
 			 perRenderableDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
-			 m_pDevice->CreateBuffer(perRenderableDesc, nullptr, &m_VSPerRenderableConstants);
+			 m_pDevice->CreateBuffer(perRenderableDesc, nullptr, &m_PerRenderableConstants);
 			 
 
 			 BufferDesc perViewDesc;
@@ -932,7 +932,7 @@ void main(in  PSInput  PSIn,
 			 perViewDesc.Usage = USAGE_DYNAMIC;
 			 perViewDesc.BindFlags = BIND_UNIFORM_BUFFER;
 			 perViewDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
-			 m_pDevice->CreateBuffer(perViewDesc, nullptr, &m_VSPerViewConstants);
+			 m_pDevice->CreateBuffer(perViewDesc, nullptr, &m_PerViewConstants);
 		 }
 
 		 // Create a pixel shader
@@ -989,9 +989,16 @@ void main(in  PSInput  PSIn,
 
 		 m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
 
-		 auto objectUniformsSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "ObjectUniforms");
-		 auto frameUniformsSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "FrameUniforms");
-		 auto materialParamsSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "MaterialParams");
+		 auto pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "ObjectUniforms");
+		 pSRV->Set(m_PerRenderableConstants);
+		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "ObjectUniforms");
+		 pSRV->Set(m_PerRenderableConstants);
+		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "FrameUniforms");
+		 pSRV->Set(m_PerViewConstants);
+		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "FrameUniforms");
+		 pSRV->Set(m_PerViewConstants);
+		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "MaterialParams");
+		 //pSRV->Set(m_VSPerRenderableConstants);
 		 // Since we did not explicitly specify the type for 'Constants' variable, default
 		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
 		 // change and are bound directly through the pipeline state object.
@@ -1036,8 +1043,8 @@ void main(in  PSInput  PSIn,
 
 		 {
 			 // Map the buffer and write current world-view-projection matrix
-			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
-			 *CBConstants = m_WorldViewProjMatrix;
+// 			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
+// 			 *CBConstants = m_WorldViewProjMatrix;
 		 }
 
 		 // Bind vertex and index buffers
@@ -1166,8 +1173,8 @@ void main(in  PSInput  PSIn,
 	 //
 	 RefCntAutoPtr<IBuffer>                m_CubeVertexBuffer;
 	 RefCntAutoPtr<IBuffer>                m_CubeIndexBuffer;
-	 RefCntAutoPtr<IBuffer>                m_VSPerRenderableConstants;
-	 RefCntAutoPtr<IBuffer>                m_VSPerViewConstants;
+	 RefCntAutoPtr<IBuffer>                m_PerRenderableConstants;
+	 RefCntAutoPtr<IBuffer>                m_PerViewConstants;
 	 RefCntAutoPtr<IBuffer>                m_PSLightConstants;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV;
 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
