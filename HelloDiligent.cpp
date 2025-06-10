@@ -536,7 +536,7 @@ void main(in  PSInput  PSIn,
 		 read(fd, data, size);
 
 		 auto material = Material::Builder().package(data, size).build(mEngine);
-		 auto mi = material->createInstance();
+		 auto mi = m_MaterialInstance = material->createInstance();
 		 mi->setParameter("baseColor", RgbType::LINEAR, math::float3{ 0.8 });
 		 mi->setParameter("metallic", 1.0f);
 		 mi->setParameter("roughness", 0.4f);
@@ -954,6 +954,14 @@ void main(in  PSInput  PSIn,
 			 lightDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
 			 m_pDevice->CreateBuffer(lightDesc, nullptr, &m_PSLightConstants);
 
+			 auto& uniformBuffer = downcast(m_MaterialInstance)->getUniformBuffer();
+			 BufferDesc materialDesc;
+			 materialDesc.Name = "MaterialUniforms";
+			 materialDesc.Size = uniformBuffer.getSize();
+			 materialDesc.Usage = USAGE_DYNAMIC;
+			 materialDesc.BindFlags = BIND_UNIFORM_BUFFER;
+			 materialDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
+			 m_pDevice->CreateBuffer(materialDesc, nullptr, &m_PSMaterialParam);
 		 }
 
 		 // clang-format off
@@ -998,6 +1006,7 @@ void main(in  PSInput  PSIn,
 		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "FrameUniforms");
 		 pSRV->Set(m_PerViewConstants);
 		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "MaterialParams");
+		 pSRV->Set(m_PSMaterialParam);
 		 //pSRV->Set(m_VSPerRenderableConstants);
 		 // Since we did not explicitly specify the type for 'Constants' variable, default
 		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
@@ -1045,6 +1054,11 @@ void main(in  PSInput  PSIn,
 			 // Map the buffer and write current world-view-projection matrix
 // 			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
 // 			 *CBConstants = m_WorldViewProjMatrix;
+
+			 MapHelper<Uint8> materialParam(m_pImmediateContext, m_PSMaterialParam, MAP_WRITE, MAP_FLAG_DISCARD);
+			 //
+			 auto& uniformBuffer = downcast(m_MaterialInstance)->getUniformBuffer();
+			 memcpy((void*)materialParam, uniformBuffer.getBuffer(), uniformBuffer.getSize());
 		 }
 
 		 // Bind vertex and index buffers
@@ -1176,6 +1190,8 @@ void main(in  PSInput  PSIn,
 	 RefCntAutoPtr<IBuffer>                m_PerRenderableConstants;
 	 RefCntAutoPtr<IBuffer>                m_PerViewConstants;
 	 RefCntAutoPtr<IBuffer>                m_PSLightConstants;
+	 RefCntAutoPtr<IBuffer>                m_PSMaterialParam;
+	 filament::MaterialInstance* m_MaterialInstance{ nullptr };
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV;
 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
 	 float4x4                              m_WorldViewProjMatrix;
