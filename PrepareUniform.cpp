@@ -539,6 +539,12 @@ namespace filament {
 
 	FScene g_scene;
 
+	//
+    const filament::PerRenderableData* getPerRenderableData() {
+        auto& renderableData = g_scene.getRenderableData();
+        return renderableData.data<FScene::UBO>();
+    }
+
 	void computeLightRanges(
 		math::float2* UTILS_RESTRICT const zrange,
 		CameraInfo const& UTILS_RESTRICT camera,

@@ -25,7 +25,7 @@
 
 //#include "details/Camera.h"
 #include "details/Engine.h"
-//#include "details/IndirectLight.h"
+#include "details/IndirectLight.h"
 #include "details/Texture.h"
 
 #include <filament/Engine.h>
@@ -378,66 +378,66 @@ void ColorPassDescriptorSet::prepareDirectionalLight(FEngine& engine,
         float exposure,
         float3 const& sceneSpaceDirection,
         LightManagerInstance directionalLight) noexcept {
-//     FLightManager const& lcm = engine.getLightManager();
-//     auto& s = mUniforms.edit();
-// 
-//     float const shadowFar = lcm.getShadowFar(directionalLight);
-//     s.shadowFarAttenuationParams = shadowFar > 0.0f ?
-//             0.5f * float2{ 10.0f, 10.0f / (shadowFar * shadowFar) } : float2{ 1.0f, 0.0f };
-// 
-//     const float3 l = -sceneSpaceDirection; // guaranteed normalized
-// 
-//     if (directionalLight.isValid()) {
-//         const float4 colorIntensity = {
-//                 lcm.getColor(directionalLight), lcm.getIntensity(directionalLight) * exposure };
-// 
-//         s.lightDirection = l;
-//         s.lightColorIntensity = colorIntensity;
-//         s.lightChannels = lcm.getLightChannels(directionalLight);
-// 
-//         const bool isSun = lcm.isSunLight(directionalLight);
-//         // The last parameter must be < 0.0f for regular directional lights
-//         float4 sun{ 0.0f, 0.0f, 0.0f, -1.0f };
-//         if (UTILS_UNLIKELY(isSun && colorIntensity.w > 0.0f)) {
-//             // Currently we have only a single directional light, so it's probably likely that it's
-//             // also the Sun. However, conceptually, most directional lights won't be sun lights.
-//             float const radius = lcm.getSunAngularRadius(directionalLight);
-//             float const haloSize = lcm.getSunHaloSize(directionalLight);
-//             float const haloFalloff = lcm.getSunHaloFalloff(directionalLight);
-//             sun.x = std::cos(radius);
-//             sun.y = std::sin(radius);
-//             sun.z = 1.0f / (std::cos(radius * haloSize) - sun.x);
-//             sun.w = haloFalloff;
-//         }
-//         s.sun = sun;
-//     } else {
-//         // Disable the sun if there's no directional light
-//         s.sun = float4{ 0.0f, 0.0f, 0.0f, -1.0f };
-//     }
+    FLightManager const& lcm = engine.getLightManager();
+    auto& s = mUniforms.edit();
+
+    float const shadowFar = lcm.getShadowFar(directionalLight);
+    s.shadowFarAttenuationParams = shadowFar > 0.0f ?
+            0.5f * float2{ 10.0f, 10.0f / (shadowFar * shadowFar) } : float2{ 1.0f, 0.0f };
+
+    const float3 l = -sceneSpaceDirection; // guaranteed normalized
+
+    if (directionalLight.isValid()) {
+        const float4 colorIntensity = {
+                lcm.getColor(directionalLight), lcm.getIntensity(directionalLight) * exposure };
+
+        s.lightDirection = l;
+        s.lightColorIntensity = colorIntensity;
+        s.lightChannels = lcm.getLightChannels(directionalLight);
+
+        const bool isSun = lcm.isSunLight(directionalLight);
+        // The last parameter must be < 0.0f for regular directional lights
+        float4 sun{ 0.0f, 0.0f, 0.0f, -1.0f };
+        if (UTILS_UNLIKELY(isSun && colorIntensity.w > 0.0f)) {
+            // Currently we have only a single directional light, so it's probably likely that it's
+            // also the Sun. However, conceptually, most directional lights won't be sun lights.
+            float const radius = lcm.getSunAngularRadius(directionalLight);
+            float const haloSize = lcm.getSunHaloSize(directionalLight);
+            float const haloFalloff = lcm.getSunHaloFalloff(directionalLight);
+            sun.x = std::cos(radius);
+            sun.y = std::sin(radius);
+            sun.z = 1.0f / (std::cos(radius * haloSize) - sun.x);
+            sun.w = haloFalloff;
+        }
+        s.sun = sun;
+    } else {
+        // Disable the sun if there's no directional light
+        s.sun = float4{ 0.0f, 0.0f, 0.0f, -1.0f };
+    }
 }
 
 void ColorPassDescriptorSet::prepareAmbientLight(FEngine& engine, FIndirectLight const& ibl,
         float const intensity, float const exposure) noexcept {
     auto& s = mUniforms.edit();
 
-//     // Set up uniforms and sampler for the IBL, guaranteed to be non-null at this point.
-//     float const iblRoughnessOneLevel = float(ibl.getLevelCount() - 1);
-//     s.iblRoughnessOneLevel = iblRoughnessOneLevel;
-//     s.iblLuminance = intensity * exposure;
-//     std::transform(ibl.getSH(), ibl.getSH() + 9, s.iblSH, [](float3 const v) {
-//         return float4(v, 0.0f);
-//     });
-// 
-//     // We always sample from the reflection texture, so provide a dummy texture if necessary.
-//     Handle<HwTexture> reflection = ibl.getReflectionHwHandle();
-//     if (!reflection) {
-//         reflection = engine.getDummyCubemap()->getHwHandle();
-//     }
-//     setSampler(+PerViewBindingPoints::IBL_SPECULAR,
-//             reflection, {
-//                     .filterMag = SamplerMagFilter::LINEAR,
-//                     .filterMin = SamplerMinFilter::LINEAR_MIPMAP_LINEAR
-//             });
+    // Set up uniforms and sampler for the IBL, guaranteed to be non-null at this point.
+    float const iblRoughnessOneLevel = float(ibl.getLevelCount() - 1);
+    s.iblRoughnessOneLevel = iblRoughnessOneLevel;
+    s.iblLuminance = intensity * exposure;
+    std::transform(ibl.getSH(), ibl.getSH() + 9, s.iblSH, [](float3 const v) {
+        return float4(v, 0.0f);
+    });
+
+    // We always sample from the reflection texture, so provide a dummy texture if necessary.
+    Handle<HwTexture> reflection = ibl.getReflectionHwHandle();
+    if (!reflection) {
+        reflection = engine.getDummyCubemap()->getHwHandle();
+    }
+    setSampler(+PerViewBindingPoints::IBL_SPECULAR,
+            reflection, {
+                    .filterMag = SamplerMagFilter::LINEAR,
+                    .filterMin = SamplerMinFilter::LINEAR_MIPMAP_LINEAR
+            });
 }
 
 void ColorPassDescriptorSet::prepareDynamicLights(Froxelizer& froxelizer) noexcept {

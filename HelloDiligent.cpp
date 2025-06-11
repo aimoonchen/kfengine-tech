@@ -236,6 +236,7 @@ void main(in  PSInput  PSIn,
 	 extern FScene g_scene;
 	 CameraInfo computeCameraInfo(FEngine& engine);
 	 void prepareLighting(filament::FEngine& engine, filament::CameraInfo const& cameraInfo);
+	 const filament::PerRenderableData* getPerRenderableData();
  }
 
  class Tutorial00App
@@ -1016,7 +1017,21 @@ void main(in  PSInput  PSIn,
 		 // Create a shader resource binding object and bind all static resources in it
 		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
 	 }
+	 void UpdateUniform()
+	 {
+		 MapHelper<Uint8> perRenderable(m_pImmediateContext, m_PerRenderableConstants, MAP_WRITE, MAP_FLAG_DISCARD);
+		 const int count = 1;
+		 filament::PerRenderableData const* const renderableData = filament::getPerRenderableData();
+		 memcpy((void*)perRenderable, renderableData, count * sizeof(filament::PerRenderableData));
 
+		 auto bufferDescriptor = mUniforms.toBufferDescriptor(mEngine.getDriverApi());
+		 MapHelper<Uint8> perView(m_pImmediateContext, m_PerViewConstants, MAP_WRITE, MAP_FLAG_DISCARD);
+		 memcpy((void*)perView, bufferDescriptor.buffer, bufferDescriptor.size);
+
+		 MapHelper<Uint8> materialParam(m_pImmediateContext, m_PSMaterialParam, MAP_WRITE, MAP_FLAG_DISCARD);
+		 auto& uniformBuffer = downcast(m_MaterialInstance)->getUniformBuffer();
+		 memcpy((void*)materialParam, uniformBuffer.getBuffer(), uniformBuffer.getSize());
+	 }
      void CreateResources()
      {
          //InitFilament();
@@ -1055,10 +1070,7 @@ void main(in  PSInput  PSIn,
 // 			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
 // 			 *CBConstants = m_WorldViewProjMatrix;
 
-			 MapHelper<Uint8> materialParam(m_pImmediateContext, m_PSMaterialParam, MAP_WRITE, MAP_FLAG_DISCARD);
-			 //
-			 auto& uniformBuffer = downcast(m_MaterialInstance)->getUniformBuffer();
-			 memcpy((void*)materialParam, uniformBuffer.getBuffer(), uniformBuffer.getSize());
+			 UpdateUniform();
 		 }
 
 		 // Bind vertex and index buffers
