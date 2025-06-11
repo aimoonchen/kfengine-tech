@@ -521,10 +521,30 @@ void main(in  PSInput  PSIn,
 
 		 m_pDevice->CreateTexture(TexDesc, &InitData, &Tex);
 		 // Get shader resource view from the texture
-		 m_TextureSRV = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		 m_TextureSRV_iblDFG = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 
 		 // Set texture SRV in the SRB
-		 m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "g_Texture")->Set(m_TextureSRV);
+		 m_SRB_iblDFG->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblDFG")->Set(m_TextureSRV_ssao);
+
+		 /*
+		 mDefaultIblTexture = downcast(Texture::Builder()
+			 .width(1).height(1).levels(1)
+			 .format(Texture::InternalFormat::RGBA8)
+			 .sampler(Texture::Sampler::SAMPLER_CUBEMAP)
+			 .build(*this));
+
+		 driverApi.update3DImage(mDefaultIblTexture->getHwHandle(), 0, 0, 0, 0, 1, 1, 6,
+			 { zeroes, sizeof(zeroes), Texture::Format::RGBA, Texture::Type::UBYTE });
+		 */
+		 TextureDesc TexDesc_iblSpecular;
+		 TexDesc_iblSpecular.Name = "White texture for PBR renderer";
+		 TexDesc_iblSpecular.Type = RESOURCE_DIM_TEX_2D;
+		 TexDesc_iblSpecular.Usage = USAGE_IMMUTABLE;
+		 TexDesc_iblSpecular.BindFlags = BIND_SHADER_RESOURCE;
+		 TexDesc_iblSpecular.Width = TexDim;
+		 TexDesc_iblSpecular.Height = TexDim;
+		 TexDesc_iblSpecular.Format = TEX_FORMAT_RGBA8_UNORM;
+		 TexDesc_iblSpecular.MipLevels = 1;
 	 }
 
 	 void InitFilament()
@@ -1015,7 +1035,9 @@ void main(in  PSInput  PSIn,
 		 //m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
 
 		 // Create a shader resource binding object and bind all static resources in it
-		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
+		 m_pPSO->CreateShaderResourceBinding(&m_SRB_ssao, true);
+		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblDFG, true);
+		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblSpecular, true);
 	 }
 	 void UpdateUniform()
 	 {
@@ -1024,9 +1046,10 @@ void main(in  PSInput  PSIn,
 		 filament::PerRenderableData const* const renderableData = filament::getPerRenderableData();
 		 memcpy((void*)perRenderable, renderableData, count * sizeof(filament::PerRenderableData));
 
-		 auto bufferDescriptor = mUniforms.toBufferDescriptor(mEngine.getDriverApi());
+		 //auto bufferDescriptor = mUniforms.toBufferDescriptor(mEngine.getDriverApi());
+		 auto& perViewData = mUniforms.itemAt(0);
 		 MapHelper<Uint8> perView(m_pImmediateContext, m_PerViewConstants, MAP_WRITE, MAP_FLAG_DISCARD);
-		 memcpy((void*)perView, bufferDescriptor.buffer, bufferDescriptor.size);
+		 memcpy((void*)perView, &perViewData, sizeof(filament::PerViewUib));
 
 		 MapHelper<Uint8> materialParam(m_pImmediateContext, m_PSMaterialParam, MAP_WRITE, MAP_FLAG_DISCARD);
 		 auto& uniformBuffer = downcast(m_MaterialInstance)->getUniformBuffer();
@@ -1039,7 +1062,7 @@ void main(in  PSInput  PSIn,
 // 		 CreateVertexBuffer();
 // 		 CreateIndexBuffer();
 		 InitFilament();
-		 //LoadTexture();
+		 LoadTexture();
 
 		 CreatePipelineState();
      }
@@ -1083,7 +1106,9 @@ void main(in  PSInput  PSIn,
 		 m_pImmediateContext->SetPipelineState(m_pPSO);
 		 // Commit shader resources. RESOURCE_STATE_TRANSITION_MODE_TRANSITION mode
 		 // makes sure that resources are transitioned to required states.
-		 m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		 m_pImmediateContext->CommitShaderResources(m_SRB_ssao, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		 m_pImmediateContext->CommitShaderResources(m_SRB_iblDFG, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		 m_pImmediateContext->CommitShaderResources(m_SRB_iblSpecular, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		 DrawIndexedAttribs DrawAttrs;     // This is an indexed draw call
 // 		 DrawAttrs.IndexType = VT_UINT32; // Index type
@@ -1204,8 +1229,15 @@ void main(in  PSInput  PSIn,
 	 RefCntAutoPtr<IBuffer>                m_PSLightConstants;
 	 RefCntAutoPtr<IBuffer>                m_PSMaterialParam;
 	 filament::MaterialInstance* m_MaterialInstance{ nullptr };
-	 RefCntAutoPtr<ITextureView>           m_TextureSRV;
-	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
+// 	 uniform sampler2DArray sampler0_ssao;
+// 	 uniform sampler2D sampler0_iblDFG;
+// 	 uniform samplerCube sampler0_iblSpecular;
+	 RefCntAutoPtr<ITextureView>           m_TextureSRV_ssao;
+	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblDFG;
+	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblSpecular;
+	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_ssao;
+	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblDFG;
+	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblSpecular;
 	 float4x4                              m_WorldViewProjMatrix;
 	 bool m_ConvertPSOutputToGamma = false;
 	 bool m_filament_ready = false;

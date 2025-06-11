@@ -429,15 +429,15 @@ void ColorPassDescriptorSet::prepareAmbientLight(FEngine& engine, FIndirectLight
     });
 
     // We always sample from the reflection texture, so provide a dummy texture if necessary.
-    Handle<HwTexture> reflection = ibl.getReflectionHwHandle();
-    if (!reflection) {
-        reflection = engine.getDummyCubemap()->getHwHandle();
-    }
-    setSampler(+PerViewBindingPoints::IBL_SPECULAR,
-            reflection, {
-                    .filterMag = SamplerMagFilter::LINEAR,
-                    .filterMin = SamplerMinFilter::LINEAR_MIPMAP_LINEAR
-            });
+//     Handle<HwTexture> reflection = ibl.getReflectionHwHandle();
+//     if (!reflection) {
+//         reflection = engine.getDummyCubemap()->getHwHandle();
+//     }
+//     setSampler(+PerViewBindingPoints::IBL_SPECULAR,
+//             reflection, {
+//                     .filterMag = SamplerMagFilter::LINEAR,
+//                     .filterMin = SamplerMinFilter::LINEAR_MIPMAP_LINEAR
+//             });
 }
 
 void ColorPassDescriptorSet::prepareDynamicLights(Froxelizer& froxelizer) noexcept {
