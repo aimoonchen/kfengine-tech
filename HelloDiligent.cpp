@@ -501,13 +501,66 @@ void main(in  PSInput  PSIn,
 
 	 void LoadTexture()
 	 {
-// 		 TextureLoadInfo loadInfo;
-// 		 loadInfo.IsSRGB = true;
-		RefCntAutoPtr<ITexture> Tex;
-// 		 CreateTextureFromFile("DGLogo.png", loadInfo, m_pDevice, &Tex);
-		 static constexpr Uint32 TexDim = 128;
+		 /*
+		 backend::Handle<backend::HwTexture> mDummyOneTexture;
+		 backend::Handle<backend::HwTexture> mDummyOneTextureArray;
+		 backend::Handle<backend::HwTexture> mDummyZeroTextureArray;
+		 backend::Handle<backend::HwTexture> mDummyZeroTexture;
+		 // create dummy textures we need throughout the engine
+		 mDummyOneTexture = driverApi.createTexture(SamplerType::SAMPLER_2D, 1,
+			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
+
+		 mDummyZeroTexture = driverApi.createTexture(SamplerType::SAMPLER_2D, 1,
+			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
+
+		 driverApi.update3DImage(mDummyOneTexture, 0, 0, 0, 0, 1, 1, 1,
+			 { &ones, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
+
+		 driverApi.update3DImage(mDummyZeroTexture, 0, 0, 0, 0, 1, 1, 1,
+			 { zeroes, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
+
+		 mDummyOneTextureArray = driverApi.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
+			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
+
+		 mDummyZeroTextureArray = driverApi.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
+			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
+
+		 driverApi.update3DImage(mDummyOneTextureArray, 0, 0, 0, 0, 1, 1, 1,
+			 { &ones, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
+
+		 driverApi.update3DImage(mDummyZeroTextureArray, 0, 0, 0, 0, 1, 1, 1,
+			 { zeroes, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
+		 */
+		 /*
+		 Uint32 TexDim = 1;
+		 std::vector<Uint32> OneData(TexDim * TexDim, 0xFFFFFFFF);
+		 std::vector<Uint32> ZeroData(TexDim * TexDim, 0x0);
+		 TextureDesc TexArrayDesc;
+		 TexArrayDesc.Name = "texture for Dummy One/Zero TextureArray";
+		 TexArrayDesc.Type = RESOURCE_DIM_TEX_2D_ARRAY;
+		 TexArrayDesc.Usage = USAGE_IMMUTABLE;
+		 TexArrayDesc.BindFlags = BIND_SHADER_RESOURCE;
+		 TexArrayDesc.Width = TexDim;
+		 TexArrayDesc.Height = TexDim;
+		 TexArrayDesc.Format = TEX_FORMAT_RGBA8_UNORM;
+		 TexArrayDesc.MipLevels = 1;
+
+		 RefCntAutoPtr<ITexture> mDummyOneTextureArray;
+		 RefCntAutoPtr<ITexture> mDummyZeroTextureArray;
+		 {
+			 
+			 TextureSubResData   Level0Data{ OneData.data(), TexDim * 4 };
+			 TextureData         InitData{ &Level0Data, 1 };
+			 m_pDevice->CreateTexture(TexArrayDesc, &InitData, &mDummyOneTextureArray);
+		 }
+		 {
+			 TextureSubResData   Level0Data{ ZeroData.data(), TexDim * 4 };
+			 TextureData         InitData{ &Level0Data, 1 };
+			 m_pDevice->CreateTexture(TexArrayDesc, &InitData, &mDummyZeroTextureArray);
+		 }
+		 
 		 TextureDesc TexDesc;
-		 TexDesc.Name = "White texture for PBR renderer";
+		 TexDesc.Name = "texture for Dummy One/Zero Texture";
 		 TexDesc.Type = RESOURCE_DIM_TEX_2D;
 		 TexDesc.Usage = USAGE_IMMUTABLE;
 		 TexDesc.BindFlags = BIND_SHADER_RESOURCE;
@@ -515,36 +568,103 @@ void main(in  PSInput  PSIn,
 		 TexDesc.Height = TexDim;
 		 TexDesc.Format = TEX_FORMAT_RGBA8_UNORM;
 		 TexDesc.MipLevels = 1;
-		 std::vector<Uint32> Data(TexDim * TexDim, 0xFFFFFFFF);
-		 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 };
-		 TextureData         InitData{ &Level0Data, 1 };
-
-		 m_pDevice->CreateTexture(TexDesc, &InitData, &Tex);
-		 // Get shader resource view from the texture
-		 m_TextureSRV_iblDFG = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
-
-		 // Set texture SRV in the SRB
-		 m_SRB_iblDFG->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblDFG")->Set(m_TextureSRV_ssao);
-
-		 /*
-		 mDefaultIblTexture = downcast(Texture::Builder()
-			 .width(1).height(1).levels(1)
-			 .format(Texture::InternalFormat::RGBA8)
-			 .sampler(Texture::Sampler::SAMPLER_CUBEMAP)
-			 .build(*this));
-
-		 driverApi.update3DImage(mDefaultIblTexture->getHwHandle(), 0, 0, 0, 0, 1, 1, 6,
-			 { zeroes, sizeof(zeroes), Texture::Format::RGBA, Texture::Type::UBYTE });
+		 RefCntAutoPtr<ITexture> mDummyOneTexture;
+		 RefCntAutoPtr<ITexture> mDummyZeroTexture;
+		 {
+			 TextureSubResData   Level0Data{ OneData.data(), TexDim * 4 };
+			 TextureData         InitData{ &Level0Data, 1 };
+			 m_pDevice->CreateTexture(TexDesc, &InitData, &mDummyOneTexture);
+		 }
+		 {
+			 TextureSubResData   Level0Data{ ZeroData.data(), TexDim * 4 };
+			 TextureData         InitData{ &Level0Data, 1 };
+			 m_pDevice->CreateTexture(TexDesc, &InitData, &mDummyZeroTexture);
+		 }
 		 */
+		 Uint32 TexDim = 1;
+		 Uint32 NumTextures = 1;
+		 TextureDesc TexDesc_ssao;
+		 TexDesc_ssao.ArraySize = NumTextures;
+		 TexDesc_ssao.Type = RESOURCE_DIM_TEX_2D_ARRAY;
+		 TexDesc_ssao.Usage = USAGE_IMMUTABLE;
+		 TexDesc_ssao.BindFlags = BIND_SHADER_RESOURCE;
+		 TexDesc_ssao.Width = TexDim;
+		 TexDesc_ssao.Height = TexDim;
+		 TexDesc_ssao.Format = TEX_FORMAT_RGBA8_UNORM;
+		 {
+			 std::vector<Uint32> Data(TexDim * TexDim, 0xFFFFFFFF);
+			 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 };
+			 //TextureData         InitData{ &Level0Data, 1 };
+			 // Prepare initialization data
+			 std::vector<TextureSubResData> SubresData(TexDesc_ssao.ArraySize * TexDesc_ssao.MipLevels);
+			 for (Uint32 slice = 0; slice < TexDesc_ssao.ArraySize; ++slice)
+			 {
+				 for (Uint32 mip = 0; mip < TexDesc_ssao.MipLevels; ++mip)
+				 {
+					 SubresData[slice * TexDesc_ssao.MipLevels + mip] = Level0Data;// TexLoaders[slice]->GetSubresourceData(mip, 0);
+				 }
+			 }
+			 TextureData InitData{ SubresData.data(), TexDesc_ssao.MipLevels * TexDesc_ssao.ArraySize };
+			 // Create the texture array
+			 RefCntAutoPtr<ITexture> mDummyOneTextureArray;
+			 m_pDevice->CreateTexture(TexDesc_ssao, &InitData, &mDummyOneTextureArray);
+			 // Get shader resource view from the texture
+			 m_TextureSRV_ssao = mDummyOneTextureArray->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		 }
+		 // Set texture SRV in the SRB
+		 m_SRB_ssao->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_ssao")->Set(m_TextureSRV_ssao);
+		 //
+		 TexDim = 128;
+		 TextureDesc TexDesc_iblDFG;
+		 TexDesc_iblDFG.Name = "texture for iblDFG";
+		 TexDesc_iblDFG.Type = RESOURCE_DIM_TEX_2D;
+		 TexDesc_iblDFG.Usage = USAGE_IMMUTABLE;
+		 TexDesc_iblDFG.BindFlags = BIND_SHADER_RESOURCE;
+		 TexDesc_iblDFG.Width = TexDim;
+		 TexDesc_iblDFG.Height = TexDim;
+		 TexDesc_iblDFG.Format = TEX_FORMAT_RGBA16_FLOAT;
+		 {
+			 std::vector<Uint64> Data(TexDim * TexDim, 0xFFFFFFFFFFFFFFFF);
+			 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 };
+			 TextureData         InitData{ &Level0Data, 1 };
+			 RefCntAutoPtr<ITexture> Tex;
+			 m_pDevice->CreateTexture(TexDesc_iblDFG, &InitData, &Tex);
+			 // Get shader resource view from the texture
+			 m_TextureSRV_iblDFG = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		 }
+		 // Set texture SRV in the SRB
+		 m_SRB_iblDFG->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblDFG")->Set(m_TextureSRV_iblDFG);
+		 //
+		 TexDim = 1;
 		 TextureDesc TexDesc_iblSpecular;
-		 TexDesc_iblSpecular.Name = "White texture for PBR renderer";
-		 TexDesc_iblSpecular.Type = RESOURCE_DIM_TEX_2D;
+		 TexDesc_iblSpecular.Name = "texture for iblSpecular";
+		 TexDesc_iblSpecular.Type = RESOURCE_DIM_TEX_CUBE;
 		 TexDesc_iblSpecular.Usage = USAGE_IMMUTABLE;
+		 TexDesc_iblSpecular.Depth = 6;
 		 TexDesc_iblSpecular.BindFlags = BIND_SHADER_RESOURCE;
 		 TexDesc_iblSpecular.Width = TexDim;
 		 TexDesc_iblSpecular.Height = TexDim;
 		 TexDesc_iblSpecular.Format = TEX_FORMAT_RGBA8_UNORM;
 		 TexDesc_iblSpecular.MipLevels = 1;
+		 {
+			 std::vector<Uint32> Data(TexDim * TexDim * TexDesc_iblSpecular.Depth, 0x0);
+			 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 * TexDesc_iblSpecular.Depth };
+			 std::vector<TextureSubResData> SubresData(TexDesc_iblSpecular.MipLevels * TexDesc_iblSpecular.Depth);
+			 for (Uint32 slice = 0; slice < TexDesc_iblSpecular.Depth; ++slice)
+			 {
+				 for (Uint32 mip = 0; mip < TexDesc_iblSpecular.MipLevels; ++mip)
+				 {
+					 SubresData[slice * TexDesc_iblSpecular.MipLevels + mip] = Level0Data;// TexLoaders[slice]->GetSubresourceData(mip, 0);
+				 }
+			 }
+			 TextureData InitData{ SubresData.data(), TexDesc_iblSpecular.MipLevels * TexDesc_iblSpecular.Depth };
+			 RefCntAutoPtr<ITexture> mDefaultIblTexture;
+			 m_pDevice->CreateTexture(TexDesc_iblSpecular, &InitData, &mDefaultIblTexture);
+			 // Get shader resource view from the texture
+			 m_TextureSRV_iblSpecular = mDefaultIblTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
+		 }
+		 // Set texture SRV in the SRB
+		 m_SRB_iblSpecular->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblSpecular")->Set(m_TextureSRV_iblSpecular);
 	 }
 
 	 void InitFilament()
@@ -1062,9 +1182,8 @@ void main(in  PSInput  PSIn,
 // 		 CreateVertexBuffer();
 // 		 CreateIndexBuffer();
 		 InitFilament();
-		 LoadTexture();
-
 		 CreatePipelineState();
+		 LoadTexture();
      }
  
 	 void Render()
