@@ -612,7 +612,8 @@ void main(in  PSInput  PSIn,
 			 m_TextureSRV_ssao = mDummyOneTextureArray->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 		 }
 		 // Set texture SRV in the SRB
-		 m_SRB_ssao->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_ssao")->Set(m_TextureSRV_ssao);
+		 //m_SRB_ssao->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_ssao")->Set(m_TextureSRV_ssao);
+		 m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_ssao")->Set(m_TextureSRV_ssao);
 		 //
 		 TexDim = 128;
 		 TextureDesc TexDesc_iblDFG;
@@ -633,7 +634,8 @@ void main(in  PSInput  PSIn,
 			 m_TextureSRV_iblDFG = Tex->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 		 }
 		 // Set texture SRV in the SRB
-		 m_SRB_iblDFG->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblDFG")->Set(m_TextureSRV_iblDFG);
+		 //m_SRB_iblDFG->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblDFG")->Set(m_TextureSRV_iblDFG);
+		 m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblDFG")->Set(m_TextureSRV_iblDFG);
 		 //
 		 TexDim = 1;
 		 TextureDesc TexDesc_iblSpecular;
@@ -664,7 +666,8 @@ void main(in  PSInput  PSIn,
 			 m_TextureSRV_iblSpecular = mDefaultIblTexture->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
 		 }
 		 // Set texture SRV in the SRB
-		 m_SRB_iblSpecular->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblSpecular")->Set(m_TextureSRV_iblSpecular);
+		 //m_SRB_iblSpecular->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblSpecular")->Set(m_TextureSRV_iblSpecular);
+		 m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_iblSpecular")->Set(m_TextureSRV_iblSpecular);
 	 }
 
 	 void InitFilament()
@@ -1029,7 +1032,7 @@ void main(in  PSInput  PSIn,
 		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_GLSL_VERBATIM;// SHADER_SOURCE_LANGUAGE_HLSL;
 
 		 // OpenGL backend requires emulated combined HLSL texture samplers (g_Texture + g_Texture_sampler combination)
-		 ShaderCI.Desc.UseCombinedTextureSamplers = true;
+		 //ShaderCI.Desc.UseCombinedTextureSamplers = true;
 
 		 // Pack matrices in row-major order
 		 ShaderCI.CompileFlags = SHADER_COMPILE_FLAG_PACK_MATRIX_ROW_MAJOR;
@@ -1114,17 +1117,16 @@ void main(in  PSInput  PSIn,
 // 			 // Attribute 1 - vertex color
 // 			 LayoutElement{1, 0, 4, VT_FLOAT32, False}
 // 		 };
-
 		 LayoutElement LayoutElems[] =
 		 {
 			 // Attribute 0 - vertex position
-			 LayoutElement{0, 0, 4, VT_FLOAT16, False, 0, 8},
+			 LayoutElement{0, 0, 4, VT_FLOAT16, False/*, 0, 8*/},
 			 // Attribute 1 - vertex tangent
-			 LayoutElement{1, 1, 4, VT_INT16, True, 142280, 8},
+			 LayoutElement{1, 1, 4, VT_INT16, True/*, 142280, 8*/},
 			 // Attribute 2 - vertex color
-			 LayoutElement{2, 2, 4, VT_UINT8, True, 284560, 4},
+			 LayoutElement{2, 2, 4, VT_UINT8, True/*, 284560, 4*/},
 			 // Attribute 3 - vertex uv
-			 LayoutElement{3, 3, 2, VT_INT16, True, 355700, 4}
+			 LayoutElement{3, 3, 2, VT_INT16, True/*, 355700, 4*/}
 		 };
 		 // clang-format on
 		 PSOCreateInfo.GraphicsPipeline.InputLayout.LayoutElements = LayoutElems;
@@ -1135,6 +1137,29 @@ void main(in  PSInput  PSIn,
 
 		 // Define variable type that will be used by default
 		 PSOCreateInfo.PSODesc.ResourceLayout.DefaultVariableType = SHADER_RESOURCE_VARIABLE_TYPE_STATIC;
+
+		 ShaderResourceVariableDesc Vars[] =
+		 {
+			 {SHADER_TYPE_PIXEL, "sampler0_ssao", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
+			 {SHADER_TYPE_PIXEL, "sampler0_iblDFG", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
+			 {SHADER_TYPE_PIXEL, "sampler0_iblSpecular", SHADER_RESOURCE_VARIABLE_TYPE_MUTABLE},
+		 };
+		 PSOCreateInfo.PSODesc.ResourceLayout.Variables = Vars;
+		 PSOCreateInfo.PSODesc.ResourceLayout.NumVariables = _countof(Vars);
+
+		 SamplerDesc SamLinearClampDesc
+		 {
+			 FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR,
+			 TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP
+		 };
+		 ImmutableSamplerDesc ImtblSamplers[] =
+		 {
+			 {SHADER_TYPE_PIXEL, "sampler0_ssao", SamLinearClampDesc},
+			 {SHADER_TYPE_PIXEL, "sampler0_iblDFG", SamLinearClampDesc},
+			 {SHADER_TYPE_PIXEL, "sampler0_iblSpecular", SamLinearClampDesc}
+		 };
+		 PSOCreateInfo.PSODesc.ResourceLayout.ImmutableSamplers = ImtblSamplers;
+		 PSOCreateInfo.PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
 
 		 m_pDevice->CreateGraphicsPipelineState(PSOCreateInfo, &m_pPSO);
 
@@ -1148,16 +1173,12 @@ void main(in  PSInput  PSIn,
 		 pSRV->Set(m_PerViewConstants);
 		 pSRV = m_pPSO->GetStaticVariableByName(SHADER_TYPE_PIXEL, "MaterialParams");
 		 pSRV->Set(m_PSMaterialParam);
-		 //pSRV->Set(m_VSPerRenderableConstants);
-		 // Since we did not explicitly specify the type for 'Constants' variable, default
-		 // type (SHADER_RESOURCE_VARIABLE_TYPE_STATIC) will be used. Static variables never
-		 // change and are bound directly through the pipeline state object.
-		 //m_pPSO->GetStaticVariableByName(SHADER_TYPE_VERTEX, "Constants")->Set(m_VSConstants);
 
 		 // Create a shader resource binding object and bind all static resources in it
-		 m_pPSO->CreateShaderResourceBinding(&m_SRB_ssao, true);
-		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblDFG, true);
-		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblSpecular, true);
+		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
+// 		 m_pPSO->CreateShaderResourceBinding(&m_SRB_ssao, true);
+// 		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblDFG, true);
+// 		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblSpecular, true);
 	 }
 	 void UpdateUniform()
 	 {
@@ -1216,7 +1237,9 @@ void main(in  PSInput  PSIn,
 		 }
 
 		 // Bind vertex and index buffers
-		 const Uint64 offsets[] = {0, 0, 0, 0};
+// 		 const Uint64 offsets[] = {0, 0, 0, 0};
+// 		 IBuffer* pBuffs[] = { m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer };
+		 const Uint64 offsets[] = { 0, 142280, 284560, 355700 };
 		 IBuffer* pBuffs[] = { m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer };
 		 m_pImmediateContext->SetVertexBuffers(0, _countof(pBuffs), pBuffs, offsets, RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
 		 m_pImmediateContext->SetIndexBuffer(m_CubeIndexBuffer, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
@@ -1225,9 +1248,10 @@ void main(in  PSInput  PSIn,
 		 m_pImmediateContext->SetPipelineState(m_pPSO);
 		 // Commit shader resources. RESOURCE_STATE_TRANSITION_MODE_TRANSITION mode
 		 // makes sure that resources are transitioned to required states.
-		 m_pImmediateContext->CommitShaderResources(m_SRB_ssao, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		 m_pImmediateContext->CommitShaderResources(m_SRB_iblDFG, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		 m_pImmediateContext->CommitShaderResources(m_SRB_iblSpecular, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		 m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+// 		 m_pImmediateContext->CommitShaderResources(m_SRB_ssao, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+// 		 m_pImmediateContext->CommitShaderResources(m_SRB_iblDFG, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+// 		 m_pImmediateContext->CommitShaderResources(m_SRB_iblSpecular, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		 DrawIndexedAttribs DrawAttrs;     // This is an indexed draw call
 // 		 DrawAttrs.IndexType = VT_UINT32; // Index type
@@ -1354,9 +1378,10 @@ void main(in  PSInput  PSIn,
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_ssao;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblDFG;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblSpecular;
-	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_ssao;
-	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblDFG;
-	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblSpecular;
+	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
+// 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_ssao;
+// 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblDFG;
+// 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblSpecular;
 	 float4x4                              m_WorldViewProjMatrix;
 	 bool m_ConvertPSOutputToGamma = false;
 	 bool m_filament_ready = false;
