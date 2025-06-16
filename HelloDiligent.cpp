@@ -1061,9 +1061,10 @@ void main(in  PSInput  PSIn,
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
+			 uint32_t mRenderableUBOSize = 0;// uint32_t(16 * sizeof(filament::PerRenderableData));
 			 BufferDesc perRenderableDesc;
 			 perRenderableDesc.Name = "ObjectUniforms";
-			 perRenderableDesc.Size = sizeof(filament::PerRenderableData);// sizeof(PerRenderableUib);
+			 perRenderableDesc.Size = mRenderableUBOSize + sizeof(filament::PerRenderableUib);//sizeof(filament::PerRenderableData);// 
 			 perRenderableDesc.Usage = USAGE_DYNAMIC;
 			 perRenderableDesc.BindFlags = BIND_UNIFORM_BUFFER;
 			 perRenderableDesc.CPUAccessFlags = CPU_ACCESS_WRITE;
@@ -1517,7 +1518,7 @@ void main(in  PSInput  PSIn,
  
      g_pTheApp.reset();
 
-	 FreeConsole();
+	 //FreeConsole();
      
 	 return (int)msg.wParam;
  }
