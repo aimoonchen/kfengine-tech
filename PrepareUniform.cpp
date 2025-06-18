@@ -16,7 +16,8 @@
 
 filament::FEngine* g_FilamentEngine = nullptr;
 filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet = nullptr;
-
+filament::math::mat4f g_ObjectMat;
+filament::math::mat4f g_LightMat;
 namespace filament {
     class FMorphTargetBuffer {
     public:
@@ -319,13 +320,12 @@ namespace filament {
 //             auto renderableWork = [first = renderableInstances.data(), &rcm, &tcm, &worldTransform,
 //                 &sceneData, shadowReceiversAreCasters](auto* p, auto c) {
 //                 SYSTRACE_NAME("renderableWork");
-            mat4f idmat{};
                 for (size_t i = 0; i < 1; i++) {
                     //auto [ri, ti] = p[i];
 
                     // this is where we go from double to float for our transforms
                     const mat4f shaderWorldTransform{
-                            worldTransform * idmat/*tcm.getWorldTransformAccurate(ti)*/ };
+                            worldTransform * g_ObjectMat/*tcm.getWorldTransformAccurate(ti)*/ };
                     const bool reversedWindingOrder = det(shaderWorldTransform.upperLeft()) < 0;
 
                     // compute the world AABB so we can perform culling
@@ -339,7 +339,7 @@ namespace filament {
 
                     // FIXME: We compute and store the local scale because it's needed for glTF but
                     //        we need a better way to handle this
-                    const mat4f& transform = idmat;// tcm.getTransform(ti);
+                    const mat4f& transform = g_ObjectMat;// tcm.getTransform(ti);
                     float const scale = (length(transform[0].xyz) + length(transform[1].xyz) +
                         length(transform[2].xyz)) / 3.0f;
 
@@ -371,7 +371,7 @@ namespace filament {
                     //auto [li, ti] = p[i];
                     // this is where we go from double to float for our transforms
                     mat4f const shaderWorldTransform{
-                            worldTransform * idmat/*tcm.getWorldTransformAccurate(ti)*/ };
+                            worldTransform * g_LightMat/*tcm.getWorldTransformAccurate(ti)*/ };
                     float4 const position = shaderWorldTransform * float4{ float3{1.0f,1.0f,1.0f}/*lcm.getLocalPosition(li)*/, 1 };
                     float3 d = 0;
                     if (false/*!lcm.isPointLight(li) || lcm.isIESLight(li)*/) {
@@ -627,7 +627,9 @@ namespace filament {
 
         g_scene.prepare(math::mat4{}, false);
 
-        g_scene.prepareVisibleRenderables();        /*
+        g_scene.prepareVisibleRenderables();
+
+        /*
          * Dynamic lights
          */
 

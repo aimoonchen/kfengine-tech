@@ -231,6 +231,8 @@ void main(in  PSInput  PSIn,
 
  extern filament::FEngine* g_FilamentEngine;
  extern filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet;
+ extern filament::math::mat4f g_ObjectMat;
+ extern filament::math::mat4f g_LightMat;
  namespace filament {
 
 	 extern FScene g_scene;
@@ -693,20 +695,20 @@ void main(in  PSInput  PSIn,
 		 data = (char*)malloc(size);
 		 read(fd, data, size);
 		 static const char MAGICID[]{ 'F', 'I', 'L', 'A', 'M', 'E', 'S', 'H' };
-// 		 filamesh::MeshReader::Mesh mesh;
-// 		 if (data) {
-// 			 char* p = data;
-// 			 char* magic = p;
-// 			 p += sizeof(MAGICID);
-// 
-// 			 if (!strncmp(MAGICID, magic, 8)) {
-// 				 filamesh::MeshReader::MaterialRegistry reg;
-// 				 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
-// 				 mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, data, nullptr, nullptr, reg);
-// 			 }
-// 			 free(data);
-// 		 }
-// 		 close(fd);
+		 // 		 filamesh::MeshReader::Mesh mesh;
+		 // 		 if (data) {
+		 // 			 char* p = data;
+		 // 			 char* magic = p;
+		 // 			 p += sizeof(MAGICID);
+		 // 
+		 // 			 if (!strncmp(MAGICID, magic, 8)) {
+		 // 				 filamesh::MeshReader::MaterialRegistry reg;
+		 // 				 reg.registerMaterialInstance(utils::CString("DefaultMaterial"), mi);
+		 // 				 mesh = filamesh::MeshReader::loadMeshFromBuffer(engine, data, nullptr, nullptr, reg);
+		 // 			 }
+		 // 			 free(data);
+		 // 		 }
+		 // 		 close(fd);
 
 		 const uint8_t* p = (const uint8_t*)data;
 		 if (strncmp(MAGICID, (const char*)p, 8)) {
@@ -739,7 +741,7 @@ void main(in  PSInput  PSIn,
 			 p += nameLength + 1; // null terminated
 		 }
 
-		const size_t indicesSize = header->indexSize;
+		 const size_t indicesSize = header->indexSize;
 		 //
 		 BufferDesc IndBuffDesc;
 		 IndBuffDesc.Name = "Cube index buffer";
@@ -749,11 +751,11 @@ void main(in  PSInput  PSIn,
 		 BufferData IBData;
 		 IBData.pData = indices;
 		 IBData.DataSize = indicesSize;
-         m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
+		 m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
 		 //
 		 VertexBuffer::AttributeType uvtype = (header->flags & filamesh::TEXCOORD_SNORM16) ?
 			 VertexBuffer::AttributeType::SHORT2 : VertexBuffer::AttributeType::HALF2;
-         const size_t verticesSize = header->vertexSize;
+		 const size_t verticesSize = header->vertexSize;
 		 BufferDesc VertBuffDesc;
 		 VertBuffDesc.Name = "Cube vertex buffer";
 		 VertBuffDesc.Usage = USAGE_IMMUTABLE;
@@ -762,10 +764,10 @@ void main(in  PSInput  PSIn,
 		 BufferData VBData;
 		 VBData.pData = vertexData;
 		 VBData.DataSize = verticesSize;
-         m_pDevice->CreateBuffer(VertBuffDesc, &VBData, &m_CubeVertexBuffer);
-         free(data);
-         close(fd);
-		 
+		 m_pDevice->CreateBuffer(VertBuffDesc, &VBData, &m_CubeVertexBuffer);
+		 free(data);
+		 close(fd);
+
 		 Variant variant;
 		 variant.setDirectionalLighting(true/*view.hasDirectionalLighting()*/);
 		 variant.setDynamicLighting(false/*view.hasDynamicLighting()*/);
@@ -775,8 +777,10 @@ void main(in  PSInput  PSIn,
 
 		 m_filament_ready = true;
 		 downcast(mi)->getMaterial()->prepareProgram(variant);
-
-		 //
+	 }
+	 void PrepareRender()
+	 {
+		 using namespace filament;
 		 filament::CameraInfo cameraInfo = computeCameraInfo(mEngine);
 		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
 
@@ -1233,7 +1237,7 @@ void main(in  PSInput  PSIn,
 			 // Map the buffer and write current world-view-projection matrix
 // 			 MapHelper<float4x4> CBConstants(m_pImmediateContext, m_VSConstants, MAP_WRITE, MAP_FLAG_DISCARD);
 // 			 *CBConstants = m_WorldViewProjMatrix;
-
+			 PrepareRender();
 			 UpdateUniform();
 		 }
 
@@ -1332,7 +1336,7 @@ void main(in  PSInput  PSIn,
 
 		 // Apply rotation
 		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
-
+		 g_ObjectMat = *(filament::math::mat4f*)&CubeModelTransform;
 		 // Camera is at (0, 0, -5) looking along the Z axis
 		 float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
 
