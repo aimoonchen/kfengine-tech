@@ -207,6 +207,7 @@ void UTILS_NOINLINE FCamera::setModelMatrix(const mat4f& modelMatrix) noexcept {
 void UTILS_NOINLINE FCamera::setModelMatrix(const mat4& modelMatrix) noexcept {
 //     FTransformManager& transformManager = mEngine.getTransformManager();
 //     transformManager.setTransform(transformManager.getInstance(mEntity), modelMatrix);
+    mModelMatrix = modelMatrix;
 }
 
 void UTILS_NOINLINE FCamera::setEyeModelMatrix(uint8_t const eyeId, mat4 const& model) {
@@ -221,12 +222,13 @@ void FCamera::lookAt(double3 const& eye, double3 const& center, double3 const& u
 //     FTransformManager& transformManager = mEngine.getTransformManager();
 //     transformManager.setTransform(transformManager.getInstance(mEntity),
 //             mat4::lookAt(eye, center, up));
+    mModelMatrix = mat4::lookAt(eye, center, up);
 }
 
 mat4 FCamera::getModelMatrix() const noexcept {
 //     FTransformManager const& transformManager = mEngine.getTransformManager();
 //     return transformManager.getWorldTransformAccurate(transformManager.getInstance(mEntity));
-    return {};
+    return mModelMatrix;
 }
 
 mat4 UTILS_NOINLINE FCamera::getViewMatrix() const noexcept {

@@ -13,11 +13,180 @@
 #include "details/IndirectLight.h"
 #include "ds/ColorPassDescriptorSet.h"
 #include "filament/Exposure.h"
+#include <camutils/Manipulator.h>
+struct Config {
+	std::string title;
+	std::string iblDirectory;
+	std::string dirt;
+	float scale = 1.0f;
+	bool splitView = false;
+	mutable filament::Engine::Backend backend = filament::Engine::Backend::DEFAULT;
+	mutable filament::backend::FeatureLevel featureLevel = filament::backend::FeatureLevel::FEATURE_LEVEL_3;
+	filament::camutils::Mode cameraMode = filament::camutils::Mode::ORBIT;
+	bool resizeable = true;
+	bool headless = false;
+	int stereoscopicEyeCount = 2;
+
+	// Provided to indicate GPU preference for vulkan
+	std::string vulkanGPUHint;
+};
 
 filament::FEngine* g_FilamentEngine = nullptr;
 filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet = nullptr;
 filament::math::mat4f g_ObjectMat;
 filament::math::mat4f g_LightMat;
+using CameraManipulator = filament::camutils::Manipulator<float>;
+class CameraPool {
+public:
+    CameraPool()
+    {
+        Config config;
+        mConfig = config;
+		filament::Engine::Config engineConfig = {};
+		engineConfig.stereoscopicEyeCount = config.stereoscopicEyeCount;
+#if defined(FILAMENT_SAMPLES_STEREO_TYPE_INSTANCED)
+		engineConfig.stereoscopicType = filament::Engine::StereoscopicType::INSTANCED;
+#elif defined (FILAMENT_SAMPLES_STEREO_TYPE_MULTIVIEW)
+		engineConfig.stereoscopicType = filament::Engine::StereoscopicType::MULTIVIEW;
+#else
+		engineConfig.stereoscopicType = filament::Engine::StereoscopicType::NONE;
+#endif
+
+		// create cameras
+		utils::EntityManager& em = utils::EntityManager::get();
+		em.create(3, mCameraEntities);
+		mCameras[0] = mMainCamera = mFilamentApp->mEngine->createCamera(mCameraEntities[0]);
+		mCameras[1] = mDebugCamera = mFilamentApp->mEngine->createCamera(mCameraEntities[1]);
+		mCameras[2] = mOrthoCamera = mFilamentApp->mEngine->createCamera(mCameraEntities[2]);
+
+		// set exposure
+		for (auto camera : mCameras) {
+			camera->setExposure(16.0f, 1 / 125.0f, 100.0f);
+		}
+
+		// create views
+// 		mViews.emplace_back(mMainView = new CView(*mRenderer, "Main View"));
+// 		if (config.splitView) {
+// 			mViews.emplace_back(mDepthView = new CView(*mRenderer, "Depth View"));
+// 			mViews.emplace_back(mGodView = new GodView(*mRenderer, "God View"));
+// 			mViews.emplace_back(mOrthoView = new CView(*mRenderer, "Shadow View"));
+// 		}
+// 		mViews.emplace_back(mUiView = new CView(*mRenderer, "UI View"));
+
+		// set-up the camera manipulators
+		mMainCameraMan = CameraManipulator::Builder()
+			.targetPosition(0, 0, -4)
+			.flightMoveDamping(15.0)
+			.build(config.cameraMode);
+		mDebugCameraMan = CameraManipulator::Builder()
+			.targetPosition(0, 0, -4)
+			.flightMoveDamping(15.0)
+			.build(config.cameraMode);
+
+// 		mMainView->setCamera(mMainCamera);
+// 		mMainView->setCameraManipulator(mMainCameraMan);
+// 		if (config.splitView) {
+// 			// Depth view always uses the main camera
+// 			mDepthView->setCamera(mMainCamera);
+// 			mDepthView->setCameraManipulator(mMainCameraMan);
+// 
+// 			// The god view uses the main camera for culling, but the debug camera for viewing
+// 			mGodView->setCamera(mMainCamera);
+// 			mGodView->setGodCamera(mDebugCamera);
+// 			mGodView->setCameraManipulator(mDebugCameraMan);
+// 		}
+
+		// configure the cameras
+		configureCamerasForWindow();
+
+		mMainCamera->lookAt({ 4, 0, -4 }, { 0, 0, -4 }, { 0, 1, 0 });
+    }
+	void configureCamerasForWindow() {
+        using namespace filament;
+        using namespace filament::math;
+		float dpiScaleX = 1.0f;
+		float dpiScaleY = 1.0f;
+
+		// If the app is not headless, query the window for its physical & virtual sizes.
+		if (!mIsHeadless) {
+			uint32_t width, height;
+			SDL_GL_GetDrawableSize(mWindow, (int*)&width, (int*)&height);
+			mWidth = (size_t)width;
+			mHeight = (size_t)height;
+
+			int virtualWidth, virtualHeight;
+			SDL_GetWindowSize(mWindow, &virtualWidth, &virtualHeight);
+			dpiScaleX = (float)width / virtualWidth;
+			dpiScaleY = (float)height / virtualHeight;
+		}
+
+		const uint32_t width = mWidth;
+		const uint32_t height = mHeight;
+
+		const float3 at(0, 0, -4);
+		const double ratio = double(height) / double(width);
+		const int sidebar = /*mFilamentApp->*/mSidebarWidth * dpiScaleX;
+
+		//const bool splitview = mViews.size() > 2;
+
+		const uint32_t mainWidth = std::max(2, (int)width - sidebar);
+
+		double near = /*mFilamentApp->*/mCameraNear;
+		double far = /*mFilamentApp->*/mCameraFar;
+		if (false/*mMainView->getView()->getStereoscopicOptions().enabled*/) {
+			mat4 projections[4];
+			projections[0] = Camera::projection(/*mFilamentApp->*/mCameraFocalLength, 1.0, near, far);
+			projections[1] = projections[0];
+			// simulate foveated rendering
+			projections[2] = Camera::projection(/*mFilamentApp->*/mCameraFocalLength * 2.0, 1.0, near, far);
+			projections[3] = projections[2];
+			mMainCamera->setCustomEyeProjection(projections, 4, projections[0], near, far);
+		}
+		else {
+			mMainCamera->setLensProjection(/*mFilamentApp->*/mCameraFocalLength, 1.0, near, far);
+		}
+		mDebugCamera->setProjection(45.0, double(mainWidth) / height, 0.0625, 4096, Camera::Fov::VERTICAL);
+
+		auto aspectRatio = double(mainWidth) / height;
+		if (false/*mMainView->getView()->getStereoscopicOptions().enabled*/) {
+			const int ec = mConfig.stereoscopicEyeCount;
+			aspectRatio = double(mainWidth) / ec / height;
+		}
+		mMainCamera->setScaling({ 1.0 / aspectRatio, 1.0 });
+
+		// We're in split view when there are more views than just the Main and UI views.
+// 		if (splitview) {
+// 			uint32_t const vpw = mainWidth / 2;
+// 			uint32_t const vph = height / 2;
+// 			mMainView->setViewport({ sidebar + 0,            0, vpw, vph });
+// 			mDepthView->setViewport({ sidebar + int32_t(vpw),            0, vpw, vph });
+// 			mGodView->setViewport({ sidebar + int32_t(vpw), int32_t(vph), vpw, vph });
+// 			mOrthoView->setViewport({ sidebar + 0, int32_t(vph), vpw, vph });
+// 		}
+// 		else {
+// 			mMainView->setViewport({ sidebar, 0, mainWidth, height });
+// 		}
+// 		mUiView->setViewport({ 0, 0, width, height });
+	}
+    //
+    int mSidebarWidth = 0;
+	float mCameraFocalLength = 28.0f;
+	float mCameraNear = 0.1f;
+	float mCameraFar = 100.0f;
+    bool mIsHeadless = false;
+	size_t mWidth = 0;
+	size_t mHeight = 0;
+    Config mConfig;
+	CameraManipulator* mMainCameraMan;
+	CameraManipulator* mDebugCameraMan;
+
+	utils::Entity mCameraEntities[3];
+	filament::Camera* mCameras[3] = { nullptr };
+	filament::Camera* mMainCamera;
+	filament::Camera* mDebugCamera;
+	filament::Camera* mOrthoCamera;
+};
+CameraPool g_CameraPool;
 namespace filament {
     class FMorphTargetBuffer {
     public:

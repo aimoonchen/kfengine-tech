@@ -216,6 +216,8 @@ private:
     float mShutterSpeed = 1.0f / 125.0f;
     float mSensitivity = 100.0f;
     float mFocusDistance = 0.0f;
+
+    math::mat4 mModelMatrix;
 };
 
 struct CameraInfo {
