@@ -625,7 +625,7 @@ namespace filament {
         auto& mColorPassDescriptorSet = *g_mColorPassDescriptorSet;
         FScene::LightSoa& lightData = g_scene.getLightData();
 
-        g_scene.prepare(math::mat4{}, false);
+        g_scene.prepare(cameraInfo.worldTransform, false);
 
         g_scene.prepareVisibleRenderables();
 

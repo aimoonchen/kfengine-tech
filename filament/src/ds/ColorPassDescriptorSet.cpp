@@ -29,7 +29,7 @@
 #include "details/Texture.h"
 
 #include <filament/Engine.h>
-// #include <filament/Exposure.h>
+#include <filament/Exposure.h>
 // #include <filament/Options.h>
 #include <filament/TextureSampler.h>
 #include <filament/MaterialEnums.h>
@@ -150,38 +150,38 @@ void ColorPassDescriptorSet::terminate(HwDescriptorSetLayoutFactory& factory, Dr
 }
 
 void ColorPassDescriptorSet::prepareCamera(FEngine& engine, const CameraInfo& camera) noexcept {
-//     mat4f const& viewFromWorld = camera.view;
-//     mat4f const& worldFromView = camera.model;
-//     mat4f const& clipFromView  = camera.projection;
-// 
-//     const mat4f viewFromClip{ inverse((mat4)camera.projection) };
-//     const mat4f worldFromClip{ highPrecisionMultiply(worldFromView, viewFromClip) };
-// 
-//     auto& s = mUniforms.edit();
-//     s.viewFromWorldMatrix = viewFromWorld;    // view
-//     s.worldFromViewMatrix = worldFromView;    // model
-//     s.clipFromViewMatrix  = clipFromView;     // projection
-//     s.viewFromClipMatrix  = viewFromClip;     // 1/projection
-//     s.worldFromClipMatrix = worldFromClip;    // 1/(projection * view)
-//     s.userWorldFromWorldMatrix = mat4f(inverse(camera.worldTransform));
-//     s.clipTransform = camera.clipTransform;
-//     s.cameraFar = camera.zf;
-//     s.oneOverFarMinusNear = 1.0f / (camera.zf - camera.zn);
-//     s.nearOverFarMinusNear = camera.zn / (camera.zf - camera.zn);
-// 
-//     mat4f const& headFromWorld = camera.view;
-//     Engine::Config const& config = engine.getConfig();
-//     for (int i = 0; i < config.stereoscopicEyeCount; i++) {
-//         mat4f const& eyeFromHead = camera.eyeFromView[i];   // identity for monoscopic rendering
-//         mat4f const& clipFromEye = camera.eyeProjection[i];
-//         // clipFromEye * eyeFromHead * headFromWorld
-//         s.clipFromWorldMatrix[i] = highPrecisionMultiply(
-//                 clipFromEye, highPrecisionMultiply(eyeFromHead, headFromWorld));
-//     }
-// 
-//     // with a clip-space of [-w, w] ==> z' = -z
-//     // with a clip-space of [0,  w] ==> z' = (w - z)/2
-//     s.clipControl = engine.getDriverApi().getClipSpaceParams();
+    mat4f const& viewFromWorld = camera.view;
+    mat4f const& worldFromView = camera.model;
+    mat4f const& clipFromView  = camera.projection;
+
+    const mat4f viewFromClip{ inverse((mat4)camera.projection) };
+    const mat4f worldFromClip{ highPrecisionMultiply(worldFromView, viewFromClip) };
+
+    auto& s = mUniforms.edit();
+    s.viewFromWorldMatrix = viewFromWorld;    // view
+    s.worldFromViewMatrix = worldFromView;    // model
+    s.clipFromViewMatrix  = clipFromView;     // projection
+    s.viewFromClipMatrix  = viewFromClip;     // 1/projection
+    s.worldFromClipMatrix = worldFromClip;    // 1/(projection * view)
+    s.userWorldFromWorldMatrix = mat4f(inverse(camera.worldTransform));
+    s.clipTransform = camera.clipTransform;
+    s.cameraFar = camera.zf;
+    s.oneOverFarMinusNear = 1.0f / (camera.zf - camera.zn);
+    s.nearOverFarMinusNear = camera.zn / (camera.zf - camera.zn);
+
+    mat4f const& headFromWorld = camera.view;
+    Engine::Config const& config = engine.getConfig();
+    for (int i = 0; i < config.stereoscopicEyeCount; i++) {
+        mat4f const& eyeFromHead = camera.eyeFromView[i];   // identity for monoscopic rendering
+        mat4f const& clipFromEye = camera.eyeProjection[i];
+        // clipFromEye * eyeFromHead * headFromWorld
+        s.clipFromWorldMatrix[i] = highPrecisionMultiply(
+                clipFromEye, highPrecisionMultiply(eyeFromHead, headFromWorld));
+    }
+
+    // with a clip-space of [-w, w] ==> z' = -z
+    // with a clip-space of [0,  w] ==> z' = (w - z)/2
+    s.clipControl = engine.getDriverApi().getClipSpaceParams();
 }
 
 void ColorPassDescriptorSet::prepareLodBias(float const bias, float2 const derivativesScale) noexcept {
@@ -191,10 +191,10 @@ void ColorPassDescriptorSet::prepareLodBias(float const bias, float2 const deriv
 }
 
 void ColorPassDescriptorSet::prepareExposure(float const ev100) noexcept {
-//     const float exposure = Exposure::exposure(ev100);
-//     auto& s = mUniforms.edit();
-//     s.exposure = exposure;
-//     s.ev100 = ev100;
+    const float exposure = Exposure::exposure(ev100);
+    auto& s = mUniforms.edit();
+    s.exposure = exposure;
+    s.ev100 = ev100;
 }
 
 void ColorPassDescriptorSet::prepareViewport(

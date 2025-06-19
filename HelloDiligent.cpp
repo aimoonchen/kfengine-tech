@@ -500,89 +500,8 @@ void main(in  PSInput  PSIn,
 		 m_pDevice->CreateBuffer(IndBuffDesc, &IBData, &m_CubeIndexBuffer);
 	 }
 
-
 	 void LoadTexture()
 	 {
-		 /*
-		 backend::Handle<backend::HwTexture> mDummyOneTexture;
-		 backend::Handle<backend::HwTexture> mDummyOneTextureArray;
-		 backend::Handle<backend::HwTexture> mDummyZeroTextureArray;
-		 backend::Handle<backend::HwTexture> mDummyZeroTexture;
-		 // create dummy textures we need throughout the engine
-		 mDummyOneTexture = driverApi.createTexture(SamplerType::SAMPLER_2D, 1,
-			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
-
-		 mDummyZeroTexture = driverApi.createTexture(SamplerType::SAMPLER_2D, 1,
-			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
-
-		 driverApi.update3DImage(mDummyOneTexture, 0, 0, 0, 0, 1, 1, 1,
-			 { &ones, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
-
-		 driverApi.update3DImage(mDummyZeroTexture, 0, 0, 0, 0, 1, 1, 1,
-			 { zeroes, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
-
-		 mDummyOneTextureArray = driverApi.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
-			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
-
-		 mDummyZeroTextureArray = driverApi.createTexture(SamplerType::SAMPLER_2D_ARRAY, 1,
-			 TextureFormat::RGBA8, 1, 1, 1, 1, TextureUsage::DEFAULT);
-
-		 driverApi.update3DImage(mDummyOneTextureArray, 0, 0, 0, 0, 1, 1, 1,
-			 { &ones, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
-
-		 driverApi.update3DImage(mDummyZeroTextureArray, 0, 0, 0, 0, 1, 1, 1,
-			 { zeroes, 4, Texture::Format::RGBA, Texture::Type::UBYTE });
-		 */
-		 /*
-		 Uint32 TexDim = 1;
-		 std::vector<Uint32> OneData(TexDim * TexDim, 0xFFFFFFFF);
-		 std::vector<Uint32> ZeroData(TexDim * TexDim, 0x0);
-		 TextureDesc TexArrayDesc;
-		 TexArrayDesc.Name = "texture for Dummy One/Zero TextureArray";
-		 TexArrayDesc.Type = RESOURCE_DIM_TEX_2D_ARRAY;
-		 TexArrayDesc.Usage = USAGE_IMMUTABLE;
-		 TexArrayDesc.BindFlags = BIND_SHADER_RESOURCE;
-		 TexArrayDesc.Width = TexDim;
-		 TexArrayDesc.Height = TexDim;
-		 TexArrayDesc.Format = TEX_FORMAT_RGBA8_UNORM;
-		 TexArrayDesc.MipLevels = 1;
-
-		 RefCntAutoPtr<ITexture> mDummyOneTextureArray;
-		 RefCntAutoPtr<ITexture> mDummyZeroTextureArray;
-		 {
-			 
-			 TextureSubResData   Level0Data{ OneData.data(), TexDim * 4 };
-			 TextureData         InitData{ &Level0Data, 1 };
-			 m_pDevice->CreateTexture(TexArrayDesc, &InitData, &mDummyOneTextureArray);
-		 }
-		 {
-			 TextureSubResData   Level0Data{ ZeroData.data(), TexDim * 4 };
-			 TextureData         InitData{ &Level0Data, 1 };
-			 m_pDevice->CreateTexture(TexArrayDesc, &InitData, &mDummyZeroTextureArray);
-		 }
-		 
-		 TextureDesc TexDesc;
-		 TexDesc.Name = "texture for Dummy One/Zero Texture";
-		 TexDesc.Type = RESOURCE_DIM_TEX_2D;
-		 TexDesc.Usage = USAGE_IMMUTABLE;
-		 TexDesc.BindFlags = BIND_SHADER_RESOURCE;
-		 TexDesc.Width = TexDim;
-		 TexDesc.Height = TexDim;
-		 TexDesc.Format = TEX_FORMAT_RGBA8_UNORM;
-		 TexDesc.MipLevels = 1;
-		 RefCntAutoPtr<ITexture> mDummyOneTexture;
-		 RefCntAutoPtr<ITexture> mDummyZeroTexture;
-		 {
-			 TextureSubResData   Level0Data{ OneData.data(), TexDim * 4 };
-			 TextureData         InitData{ &Level0Data, 1 };
-			 m_pDevice->CreateTexture(TexDesc, &InitData, &mDummyOneTexture);
-		 }
-		 {
-			 TextureSubResData   Level0Data{ ZeroData.data(), TexDim * 4 };
-			 TextureData         InitData{ &Level0Data, 1 };
-			 m_pDevice->CreateTexture(TexDesc, &InitData, &mDummyZeroTexture);
-		 }
-		 */
 		 Uint32 TexDim = 1;
 		 Uint32 NumTextures = 1;
 		 TextureDesc TexDesc_ssao;
