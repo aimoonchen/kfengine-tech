@@ -234,7 +234,7 @@ void main(in  PSInput  PSIn,
  extern filament::math::mat4f g_ObjectMat;
  extern filament::math::mat4f g_LightMat;
  namespace filament {
-
+	 using Viewport = backend::Viewport;
 	 extern FScene g_scene;
 	 CameraInfo computeCameraInfo(FEngine& engine);
 	 void prepareLighting(filament::FEngine& engine, filament::CameraInfo const& cameraInfo);
@@ -700,9 +700,105 @@ void main(in  PSInput  PSIn,
 	 void PrepareRender()
 	 {
 		 using namespace filament;
+		 using namespace filament::math;
+		 math::float2 scale = 1.0;
+		 // vp is the user defined viewport within the View
+		 filament::Viewport vp{0,0,1280,1024 };// view.getViewport();
+
+		 // svp is the "rendering" viewport. That is the viewport after dynamic-resolution is applied
+		 // as well as other adjustment, such as the guard band.
+		 filament::Viewport svp = {
+				 0, 0, // this is ignored
+				 uint32_t(float(vp.width) * scale.x),
+				 uint32_t(float(vp.height) * scale.y)
+		 };
+		 filament::Viewport xvp = svp;
+		 AmbientOcclusionOptions mAmbientOcclusionOptions{};
+		 auto aoOptions = mAmbientOcclusionOptions;
+		 auto physicalViewport = svp;
+		 auto logicalViewport = filament::Viewport{
+			  int32_t(float(xvp.left) * aoOptions.resolution),
+			  int32_t(float(xvp.bottom) * aoOptions.resolution),
+			 uint32_t(float(xvp.width) * aoOptions.resolution),
+			 uint32_t(float(xvp.height) * aoOptions.resolution) };
+
 		 filament::CameraInfo cameraInfo = computeCameraInfo(mEngine);
+		 bool hasFXAA = false;
+		 bool scaled = false;
+		 bool hasPostProcess = false;
+		 const bool isSubpassPossible = false;
+// 			 msaaSampleCount <= 1 &&
+// 			 hasColorGrading &&
+// 			 !bloomOptions.enabled && !dofOptions.enabled && !taaOptions.enabled;
+
+		 // If fxaa and scaling are not enabled, we're essentially in a very fast rendering path -- in
+		// this case, we would need an extra blit to "resolve" the buffer padding (because there are no
+		// other pass that can do it as a side effect). In this case, it is better to skip the padding,
+		// which won't be helping much.
+		 const bool noBufferPadding = (isSubpassPossible &&
+			 !hasFXAA && !scaled)/* || engine.debug.renderer.disable_buffer_padding*/;
+
+		 // guardBand must be a multiple of 16 to guarantee the same exact rendering up to 4 mip levels.
+		 float const guardBand = /*guardBandOptions.enabled ? 16.0f : */0.0f;
+
+		 if (hasPostProcess && !noBufferPadding) {
+			 // We always pad the rendering viewport to dimensions multiple of 16, this guarantees
+			 // that up to 4 mipmap levels are possible with an exact 1:2 scale. This also helps
+			 // with memory allocations and quad-shading when dynamic-resolution is enabled.
+			 // There is a small performance cost for dimensions that are not already multiple of 16.
+			 // But, this a no-op in common resolutions, in particular in 720p.
+			 // The origin of rendering is not modified, the padding is added to the right/top.
+			 //
+			 // TODO: Should we enable when we don't have post-processing?
+			 //       Without post-processing, we usually draw directly into
+			 //       the SwapChain, and we might want to keep it this way.
+
+			 auto round = [](uint32_t const x) {
+				 constexpr uint32_t rounding = 16u;
+				 return (x + (rounding - 1u)) & ~(rounding - 1u);
+				 };
+
+			 // compute the new rendering width and height, multiple of 16.
+			 const float width = float(round(svp.width)) + 2.0f * guardBand;
+			 const float height = float(round(svp.height)) + 2.0f * guardBand;
+
+			 // scale the field-of-view up, so it covers exactly the extra pixels
+			 const math::float3 clipSpaceScaling{
+					 float(svp.width) / width,
+					 float(svp.height) / height,
+					 1.0f };
+
+			 // add the extra-pixels on the right/top of the viewport
+			 // the translation comes from (same for height): 2*((width - svp.width)/2) / width
+			 // i.e. we offset by half the width/height delta and the 2* comes from the fact that
+			 // clip-space has width/height of 2.
+			 // note: this creates an asymmetric frustum -- but we eventually copy only the
+			 // left/bottom part, which is a symmetric region.
+			 const math::float2 clipSpaceTranslation{
+					 1.0f - clipSpaceScaling.x - 2.0f * guardBand / width,
+					 1.0f - clipSpaceScaling.y - 2.0f * guardBand / height
+			 };
+
+			 mat4f ts = mat4f::scaling(clipSpaceScaling);
+			 ts[3].xy = -clipSpaceTranslation;
+
+			 // update the camera projection
+			 cameraInfo.projection = highPrecisionMultiply(ts, cameraInfo.projection);
+
+			 // VERTEX_DOMAIN_DEVICE doesn't apply the projection, but it still needs this
+			 // clip transform, so we apply it separately (see surface_main.vs)
+			 cameraInfo.clipTransform = { ts[0][0], ts[1][1], ts[3].x, ts[3].y };
+
+			 // adjust svp to the new, larger, rendering dimensions
+			 svp.width = uint32_t(width);
+			 svp.height = uint32_t(height);
+			 xvp.left = int32_t(guardBand);
+			 xvp.bottom = int32_t(guardBand);
+		 }
+
 		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
 
+		 
 		 // prepareShadowing
 		 
 		 // PerRenderableUib
@@ -728,13 +824,13 @@ void main(in  PSInput  PSIn,
 													} };
 		 mColorPassDescriptorSet.prepareMaterialGlobals(mMaterialGlobals);
 		 //prepareUpscaler
-		 math::float2 scale{1.0f, 1.0f};
+		 math::float2 scale2{1.0f, 1.0f};
 		 TemporalAntiAliasingOptions taaOptions;
 		 DynamicResolutionOptions dsrOptions;
 		 float bias = 0.0f;
 		 math::float2 derivativesScale{ 1.0f };
 		 if (dsrOptions.enabled && dsrOptions.quality >= QualityLevel::HIGH) {
-			 bias = std::log2(std::min(scale.x, scale.y));
+			 bias = std::log2(std::min(scale2.x, scale2.y));
 		 }
 		 if (taaOptions.enabled) {
 			 bias += taaOptions.lodBias;
@@ -743,6 +839,9 @@ void main(in  PSInput  PSIn,
 			 }
 		 }
 		 mColorPassDescriptorSet.prepareLodBias(bias, derivativesScale);
+
+
+		 mColorPassDescriptorSet.prepareViewport(physicalViewport, logicalViewport);
 	 }
 	 // split shader source code in three:
 // - the version line

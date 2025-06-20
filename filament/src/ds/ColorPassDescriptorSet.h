@@ -17,7 +17,7 @@
 #ifndef TNT_FILAMENT_PERVIEWUNIFORMS_H
 #define TNT_FILAMENT_PERVIEWUNIFORMS_H
 
-//#include <filament/Viewport.h>
+#include <filament/Viewport.h>
 
 #include "DescriptorSet.h"
 
@@ -41,7 +41,7 @@
 #include <stdint.h>
 
 namespace filament {
-    class Viewport;
+//    class Viewport;
 class DescriptorSetLayout;
 class HwDescriptorSetLayoutFactory;
 

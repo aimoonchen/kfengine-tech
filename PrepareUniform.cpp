@@ -36,9 +36,9 @@ filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet = nullptr;
 filament::math::mat4f g_ObjectMat;
 filament::math::mat4f g_LightMat;
 using CameraManipulator = filament::camutils::Manipulator<float>;
-class CameraPool {
+class FilamentCamera {
 public:
-    CameraPool()
+    FilamentCamera(filament::FEngine& engine)
     {
         Config config;
         mConfig = config;
@@ -53,11 +53,11 @@ public:
 #endif
 
 		// create cameras
-		utils::EntityManager& em = utils::EntityManager::get();
-		em.create(3, mCameraEntities);
-		mCameras[0] = mMainCamera = mFilamentApp->mEngine->createCamera(mCameraEntities[0]);
-		mCameras[1] = mDebugCamera = mFilamentApp->mEngine->createCamera(mCameraEntities[1]);
-		mCameras[2] = mOrthoCamera = mFilamentApp->mEngine->createCamera(mCameraEntities[2]);
+// 		utils::EntityManager& em = utils::EntityManager::get();
+// 		em.create(3, mCameraEntities);
+        mCameras[0] = mMainCamera = engine.createCamera({}/*mCameraEntities[0]*/);
+        mCameras[1] = mDebugCamera = engine.createCamera({}/*mCameraEntities[1]*/);
+        mCameras[2] = mOrthoCamera = engine.createCamera({}/*mCameraEntities[2]*/);
 
 		// set exposure
 		for (auto camera : mCameras) {
@@ -109,13 +109,13 @@ public:
 
 		// If the app is not headless, query the window for its physical & virtual sizes.
 		if (!mIsHeadless) {
-			uint32_t width, height;
-			SDL_GL_GetDrawableSize(mWindow, (int*)&width, (int*)&height);
+            uint32_t width{ 1280 }, height{ 1024 };
+			//SDL_GL_GetDrawableSize(mWindow, (int*)&width, (int*)&height);
 			mWidth = (size_t)width;
 			mHeight = (size_t)height;
 
-			int virtualWidth, virtualHeight;
-			SDL_GetWindowSize(mWindow, &virtualWidth, &virtualHeight);
+			int virtualWidth{ 1280 }, virtualHeight{ 1024 };
+			//SDL_GetWindowSize(mWindow, &virtualWidth, &virtualHeight);
 			dpiScaleX = (float)width / virtualWidth;
 			dpiScaleY = (float)height / virtualHeight;
 		}
@@ -186,7 +186,7 @@ public:
 	filament::Camera* mDebugCamera;
 	filament::Camera* mOrthoCamera;
 };
-CameraPool g_CameraPool;
+
 namespace filament {
     class FMorphTargetBuffer {
     public:
@@ -844,23 +844,18 @@ namespace filament {
     }
     CameraInfo computeCameraInfo(FEngine& engine)
     {
-        using namespace math;
-		float mCameraFocalLength = 28.0f;
-		float mCameraNear = 0.1f;
-		float mCameraFar = 100.0f;
-		auto cam = engine.createCamera({});
-        cam->setExposure(16.0f, 1 / 125.0f, 100.0f);
+        static FilamentCamera g_FilamentCamera(engine);
 
-        cam->setLensProjection(mCameraFocalLength, 1.0, mCameraNear, mCameraFar);
-        //
-        auto aspectRatio = double(1024) / 640;//double(mainWidth) / height;
-        cam->setScaling({ 1.0 / aspectRatio, 1.0 });
+		filament::math::float3 eye, center, up;
+		g_FilamentCamera.mMainCameraMan->getLookAt(&eye, &center, &up);
+		g_FilamentCamera.mMainCamera->lookAt(eye, center, up);
+		g_FilamentCamera.mDebugCameraMan->getLookAt(&eye, &center, &up);
+		g_FilamentCamera.mDebugCamera->lookAt(eye, center, up);
 
-        cam->lookAt({ 4, 0, -4 }, { 0, 0, -4 }, { 0, 1, 0 });
-
-        auto mViewingCamera = cam;
+		auto mViewingCamera = downcast(g_FilamentCamera.mMainCamera);
         auto mCullingCamera = mViewingCamera;
         //FScene const* const scene = getScene();
+		using namespace math;
 
         /*
          * We apply a "world origin" to "everything" in order to implement the IBL rotation.
