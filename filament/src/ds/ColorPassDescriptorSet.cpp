@@ -30,10 +30,10 @@
 
 #include <filament/Engine.h>
 #include <filament/Exposure.h>
-// #include <filament/Options.h>
+#include <filament/Options.h>
 #include <filament/TextureSampler.h>
 #include <filament/MaterialEnums.h>
-//#include <filament/Viewport.h>
+#include <filament/Viewport.h>
 
 #include <private/filament/EngineEnums.h>
 #include <private/filament/DescriptorSets.h>
@@ -200,14 +200,14 @@ void ColorPassDescriptorSet::prepareExposure(float const ev100) noexcept {
 void ColorPassDescriptorSet::prepareViewport(
         const filament::Viewport& physicalViewport,
         const filament::Viewport& logicalViewport) noexcept {
-//     float4 const physical{ physicalViewport.left, physicalViewport.bottom,
-//                            physicalViewport.width, physicalViewport.height };
-//     float4 const logical{ logicalViewport.left, logicalViewport.bottom,
-//                           logicalViewport.width, logicalViewport.height };
-//     auto& s = mUniforms.edit();
-//     s.resolution = { physical.zw, 1.0f / physical.zw };
-//     s.logicalViewportScale = physical.zw / logical.zw;
-//     s.logicalViewportOffset = -logical.xy / logical.zw;
+    float4 const physical{ physicalViewport.left, physicalViewport.bottom,
+                           physicalViewport.width, physicalViewport.height };
+    float4 const logical{ logicalViewport.left, logicalViewport.bottom,
+                          logicalViewport.width, logicalViewport.height };
+    auto& s = mUniforms.edit();
+    s.resolution = { physical.zw, 1.0f / physical.zw };
+    s.logicalViewportScale = physical.zw / logical.zw;
+    s.logicalViewportOffset = -logical.xy / logical.zw;
 }
 
 void ColorPassDescriptorSet::prepareTime(FEngine& engine, float4 const& userTime) noexcept {
@@ -220,10 +220,10 @@ void ColorPassDescriptorSet::prepareTime(FEngine& engine, float4 const& userTime
 
 void ColorPassDescriptorSet::prepareTemporalNoise(FEngine& engine,
         TemporalAntiAliasingOptions const& options) noexcept {
-//     std::uniform_real_distribution<float> uniformDistribution{ 0.0f, 1.0f };
-//     auto& s = mUniforms.edit();
-//     const float temporalNoise = uniformDistribution(engine.getRandomEngine());
-//     s.temporalNoise = options.enabled ? temporalNoise : 0.0f;
+    std::uniform_real_distribution<float> uniformDistribution{ 0.0f, 1.0f };
+    auto& s = mUniforms.edit();
+    const float temporalNoise = uniformDistribution(engine.getRandomEngine());
+    s.temporalNoise = options.enabled ? temporalNoise : 0.0f;
 }
 
 void ColorPassDescriptorSet::prepareFog(FEngine& engine, const CameraInfo& cameraInfo,
@@ -305,22 +305,22 @@ void ColorPassDescriptorSet::prepareFog(FEngine& engine, const CameraInfo& camer
 
 void ColorPassDescriptorSet::prepareSSAO(Handle<HwTexture> ssao,
         AmbientOcclusionOptions const& options) noexcept {
-//     // High quality sampling is enabled only if AO itself is enabled and upsampling quality is at
-//     // least set to high and of course only if upsampling is needed.
-//     const bool highQualitySampling = options.upsampling >= QualityLevel::HIGH
-//             && options.resolution < 1.0f;
-// 
-//     // LINEAR filtering is only needed when AO is enabled and low-quality upsampling is used.
-//     setSampler(+PerViewBindingPoints::SSAO, ssao, {
-//         .filterMag = options.enabled && !highQualitySampling ?
-//                 SamplerMagFilter::LINEAR : SamplerMagFilter::NEAREST
-//     });
-// 
-//     const float edgeDistance = 1.0f / options.bilateralThreshold;
-//     auto& s = mUniforms.edit();
-//     s.aoSamplingQualityAndEdgeDistance =
-//             options.enabled ? (highQualitySampling ? edgeDistance : 0.0f) : -1.0f;
-//     s.aoBentNormals = options.enabled && options.bentNormals ? 1.0f : 0.0f;
+    // High quality sampling is enabled only if AO itself is enabled and upsampling quality is at
+    // least set to high and of course only if upsampling is needed.
+    const bool highQualitySampling = options.upsampling >= QualityLevel::HIGH
+            && options.resolution < 1.0f;
+
+    // LINEAR filtering is only needed when AO is enabled and low-quality upsampling is used.
+    setSampler(+PerViewBindingPoints::SSAO, ssao, {
+        .filterMag = options.enabled && !highQualitySampling ?
+                SamplerMagFilter::LINEAR : SamplerMagFilter::NEAREST
+    });
+
+    const float edgeDistance = 1.0f / options.bilateralThreshold;
+    auto& s = mUniforms.edit();
+    s.aoSamplingQualityAndEdgeDistance =
+            options.enabled ? (highQualitySampling ? edgeDistance : 0.0f) : -1.0f;
+    s.aoBentNormals = options.enabled && options.bentNormals ? 1.0f : 0.0f;
 }
 
 void ColorPassDescriptorSet::prepareBlending(bool const needsAlphaChannel) noexcept {
@@ -340,14 +340,14 @@ void ColorPassDescriptorSet::prepareSSR(Handle<HwTexture> ssr,
         float const refractionLodOffset,
         ScreenSpaceReflectionsOptions const& ssrOptions) noexcept {
 
-//     setSampler(+PerViewBindingPoints::SSR, ssr, {
-//         .filterMag = SamplerMagFilter::LINEAR,
-//         .filterMin = SamplerMinFilter::LINEAR_MIPMAP_LINEAR
-//     });
-// 
-//     auto& s = mUniforms.edit();
-//     s.refractionLodOffset = refractionLodOffset;
-//     s.ssrDistance = (ssrOptions.enabled && !disableSSR) ? ssrOptions.maxDistance : 0.0f;
+    setSampler(+PerViewBindingPoints::SSR, ssr, {
+        .filterMag = SamplerMagFilter::LINEAR,
+        .filterMin = SamplerMinFilter::LINEAR_MIPMAP_LINEAR
+    });
+
+    auto& s = mUniforms.edit();
+    s.refractionLodOffset = refractionLodOffset;
+    s.ssrDistance = (ssrOptions.enabled && !disableSSR) ? ssrOptions.maxDistance : 0.0f;
 }
 
 void ColorPassDescriptorSet::prepareHistorySSR(Handle<HwTexture> ssr,
@@ -355,18 +355,18 @@ void ColorPassDescriptorSet::prepareHistorySSR(Handle<HwTexture> ssr,
         mat4f const& uvFromViewMatrix,
         ScreenSpaceReflectionsOptions const& ssrOptions) noexcept {
 
-//     setSampler(+PerViewBindingPoints::SSR, ssr, {
-//         .filterMag = SamplerMagFilter::LINEAR,
-//         .filterMin = SamplerMinFilter::LINEAR
-//     });
-// 
-//     auto& s = mUniforms.edit();
-//     s.ssrReprojection = historyProjection;
-//     s.ssrUvFromViewMatrix = uvFromViewMatrix;
-//     s.ssrThickness = ssrOptions.thickness;
-//     s.ssrBias = ssrOptions.bias;
-//     s.ssrDistance = ssrOptions.enabled ? ssrOptions.maxDistance : 0.0f;
-//     s.ssrStride = ssrOptions.stride;
+    setSampler(+PerViewBindingPoints::SSR, ssr, {
+        .filterMag = SamplerMagFilter::LINEAR,
+        .filterMin = SamplerMinFilter::LINEAR
+    });
+
+    auto& s = mUniforms.edit();
+    s.ssrReprojection = historyProjection;
+    s.ssrUvFromViewMatrix = uvFromViewMatrix;
+    s.ssrThickness = ssrOptions.thickness;
+    s.ssrBias = ssrOptions.bias;
+    s.ssrDistance = ssrOptions.enabled ? ssrOptions.maxDistance : 0.0f;
+    s.ssrStride = ssrOptions.stride;
 }
 
 void ColorPassDescriptorSet::prepareStructure(Handle<HwTexture> structure) noexcept {

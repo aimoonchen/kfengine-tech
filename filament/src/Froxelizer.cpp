@@ -25,8 +25,8 @@
 #include <private/filament/EngineEnums.h>
 #include <private/backend/DriverApi.h>
 
-// #include <filament/Box.h>
-// #include <filament/Viewport.h>
+#include <filament/Box.h>
+#include <filament/Viewport.h>
 
 #include <backend/DriverEnums.h>
 

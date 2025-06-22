@@ -22,7 +22,7 @@
 //#include "details/Scene.h"
 #include "details/Engine.h"
 
-//#include <filament/Viewport.h>
+#include <filament/Viewport.h>
 
 #include <backend/Handle.h>
 

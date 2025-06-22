@@ -41,7 +41,7 @@
 #include <stdint.h>
 
 namespace filament {
-//    class Viewport;
+
 class DescriptorSetLayout;
 class HwDescriptorSetLayoutFactory;
 

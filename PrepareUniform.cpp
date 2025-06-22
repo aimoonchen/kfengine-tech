@@ -35,6 +35,7 @@ filament::FEngine* g_FilamentEngine = nullptr;
 filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet = nullptr;
 filament::math::mat4f g_ObjectMat;
 filament::math::mat4f g_LightMat;
+utils::Entity g_FilamentSun;
 using CameraManipulator = filament::camutils::Manipulator<float>;
 class FilamentCamera {
 public:
@@ -384,7 +385,7 @@ namespace filament {
 //             EntityManager const& em = engine.getEntityManager();
 //             FRenderableManager const& rcm = engine.getRenderableManager();
 //             FTransformManager const& tcm = engine.getTransformManager();
-//             FLightManager const& lcm = engine.getLightManager();
+            FLightManager const& lcm = g_FilamentEngine->getLightManager();
 //             // go through the list of entities, and gather the data of those that are renderables
             auto& sceneData = mRenderableData;
             auto& lightData = mLightData;
@@ -523,8 +524,8 @@ namespace filament {
                     sceneData.elementAt<INSTANCES>(index) = {};// rcm.getInstancesInfo(ri);
                     sceneData.elementAt<WORLD_AABB_CENTER>(index) = {};// worldAABB.center;
                     sceneData.elementAt<VISIBLE_MASK>(index) = 0;
-                    sceneData.elementAt<CHANNELS>(index) = {};// rcm.getChannels(ri);
-                    sceneData.elementAt<LAYERS>(index) = {};// rcm.getLayerMask(ri);
+                    sceneData.elementAt<CHANNELS>(index) = 1;// rcm.getChannels(ri);
+                    sceneData.elementAt<LAYERS>(index) = 1;// rcm.getLayerMask(ri);
                     sceneData.elementAt<WORLD_AABB_EXTENT>(index) = {1.0f, 1.0f, 1.0f};// worldAABB.halfExtent;
                     //sceneData.elementAt<PRIMITIVES>(index)          = {}; // already initialized, Slice<>
                     sceneData.elementAt<SUMMED_PRIMITIVE_COUNT>(index) = 0;
@@ -536,23 +537,24 @@ namespace filament {
 //             auto lightWork = [first = lightInstances.data(), &lcm, &tcm, &worldTransform,
 //                 &lightData](auto* p, auto c) {
 //                 SYSTRACE_NAME("lightWork");
-                for (size_t i = 0; i < 1; i++) {
+                for (size_t i = 0; i < 0; i++) {
+                    FLightManager::Instance li;
                     //auto [li, ti] = p[i];
                     // this is where we go from double to float for our transforms
                     mat4f const shaderWorldTransform{
                             worldTransform * g_LightMat/*tcm.getWorldTransformAccurate(ti)*/ };
-                    float4 const position = shaderWorldTransform * float4{ float3{1.0f,1.0f,1.0f}/*lcm.getLocalPosition(li)*/, 1 };
+                    float4 const position = shaderWorldTransform * float4{ lcm.getLocalPosition(li), 1 };
                     float3 d = 0;
-                    if (false/*!lcm.isPointLight(li) || lcm.isIESLight(li)*/) {
-                        d = float3{ 1.0f,1.0f,1.0f };// lcm.getLocalDirection(li);
+                    if (!lcm.isPointLight(li) || lcm.isIESLight(li)) {
+                        d = lcm.getLocalDirection(li);
                         // using mat3f::getTransformForNormals handles non-uniform scaling
                         d = normalize(mat3f::getTransformForNormals(shaderWorldTransform.upperLeft()) * d);
                     }
                     size_t const index = DIRECTIONAL_LIGHTS_COUNT + /*std::distance(first, p) + */i;
                     assert_invariant(index < lightData.size());
-                    lightData.elementAt<POSITION_RADIUS>(index) = float4{ position.xyz, 100.0f/*lcm.getRadius(li)*/ };
+                    lightData.elementAt<POSITION_RADIUS>(index) = float4{ position.xyz, lcm.getRadius(li) };
                     lightData.elementAt<DIRECTION>(index) = d;
-                    lightData.elementAt<LIGHT_INSTANCE>(index) = {};// li;
+                    lightData.elementAt<LIGHT_INSTANCE>(index) = li;
                 }
                 //};
 
@@ -581,11 +583,12 @@ namespace filament {
             //if (auto [li, ti] = directionalLightInstances; li) {
                 // in the code below, we only transform directions, so the translation of the
                 // world transform is irrelevant, and we don't need to use getWorldTransformAccurate()
+                auto li = lcm.getInstance(g_FilamentSun);
                 mat4 idmatd;
                 mat3 const worldDirectionTransform =
                     mat3::getTransformForNormals(idmatd/*tcm.getWorldTransformAccurate(ti)*/.upperLeft());
-                FLightManager::ShadowParams const params = {};// lcm.getShadowParams(li);
-                float3 const localDirection = worldDirectionTransform * float3{1.0f, 1.0f, 1.0f}/*lcm.getLocalDirection(li)*/;
+                FLightManager::ShadowParams const params = lcm.getShadowParams(li);
+                float3 const localDirection = worldDirectionTransform * lcm.getLocalDirection(li);
                 double3 const shadowLocalDirection = params.options.transform * localDirection;
 
                 // using mat3::getTransformForNormals handles non-uniform scaling
@@ -614,7 +617,7 @@ namespace filament {
                 lightData.elementAt<DIRECTION>(0) = normalize(d);
                 lightData.elementAt<SHADOW_DIRECTION>(0) = normalize(s);
                 lightData.elementAt<SHADOW_REF>(0) = lsReferencePoint;
-                lightData.elementAt<LIGHT_INSTANCE>(0) = {};// li;
+                lightData.elementAt<LIGHT_INSTANCE>(0) = li;
 //             }
 //             else {
 //                 lightData.elementAt<LIGHT_INSTANCE>(0) = 0;
@@ -791,12 +794,11 @@ namespace filament {
     }
     bool hasDynamicLighting() { return false; }
     void prepareLighting(FEngine& engine, CameraInfo const& cameraInfo) noexcept {
+        g_scene.prepare(cameraInfo.worldTransform, false);
+        g_scene.prepareVisibleRenderables();
+
         auto& mColorPassDescriptorSet = *g_mColorPassDescriptorSet;
         FScene::LightSoa& lightData = g_scene.getLightData();
-
-        g_scene.prepare(cameraInfo.worldTransform, false);
-
-        g_scene.prepareVisibleRenderables();
 
         /*
          * Dynamic lights

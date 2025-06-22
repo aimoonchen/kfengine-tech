@@ -233,8 +233,9 @@ void main(in  PSInput  PSIn,
  extern filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet;
  extern filament::math::mat4f g_ObjectMat;
  extern filament::math::mat4f g_LightMat;
+
+ extern utils::Entity g_FilamentSun;
  namespace filament {
-	 using Viewport = backend::Viewport;
 	 extern FScene g_scene;
 	 CameraInfo computeCameraInfo(FEngine& engine);
 	 void prepareLighting(filament::FEngine& engine, filament::CameraInfo const& cameraInfo);
@@ -696,14 +697,105 @@ void main(in  PSInput  PSIn,
 
 		 m_filament_ready = true;
 		 downcast(mi)->getMaterial()->prepareProgram(variant);
+
+		 // Add light sources into the scene.
+		 //auto& em = utils::EntityManager::get();
+		 g_FilamentSun = utils::Entity::import(100);// em.create();
+		 LightManager::Builder(LightManager::Type::SUN)
+			 .color(Color::toLinear<ACCURATE>(sRGBColor(0.98f, 0.92f, 0.89f)))
+			 .intensity(110000)
+			 .direction({ 0.7, -1, -0.8 })
+			 .sunAngularRadius(1.9f)
+			 .castShadows(false)
+			 .build(*g_FilamentEngine, g_FilamentSun/*app.light*/);
 	 }
 	 void PrepareRender()
 	 {
 		 using namespace filament;
 		 using namespace filament::math;
-		 math::float2 scale = 1.0;
+		 bool hasPostProcess = false/*view.hasPostProcessPass()*/;
+		 bool hasScreenSpaceRefraction = false;
+		 bool hasColorGrading = hasPostProcess;
+		 bool hasDithering = false/*view.getDithering() == Dithering::TEMPORAL*/;
+		 bool hasFXAA = false/*view.getAntiAliasing() == AntiAliasing::FXAA*/;
+
+		 math::float2 scale = 1.0/*view.updateScale(engine, mFrameInfoManager.getLastFrameInfo(), mFrameRateOptions, mDisplayInfo)*/;
+		 MultiSampleAntiAliasingOptions mMultiSampleAntiAliasingOptions;
+		 auto msaaOptions = mMultiSampleAntiAliasingOptions/*view.getMultiSampleAntiAliasingOptions()*/;
+		 DynamicResolutionOptions mDynamicResolution;
+		 auto dsrOptions = mDynamicResolution/*view.getDynamicResolutionOptions()*/;
+		 BloomOptions mBloomOptions;
+		 auto bloomOptions = mBloomOptions/*view.getBloomOptions()*/;
+		 DepthOfFieldOptions mDepthOfFieldOptions;
+		 auto dofOptions = mDepthOfFieldOptions/*view.getDepthOfFieldOptions()*/;
+		 VignetteOptions mVignetteOptions;
+		 auto vignetteOptions = mVignetteOptions/*view.getVignetteOptions()*/;
+		 AmbientOcclusionOptions mAmbientOcclusionOptions{};
+		 auto aoOptions = mAmbientOcclusionOptions/*view.getAmbientOcclusionOptions()*/;
+		 TemporalAntiAliasingOptions mTemporalAntiAliasingOptions;
+		 auto taaOptions = mTemporalAntiAliasingOptions/*view.getTemporalAntiAliasingOptions()*/;
+
+		 
+		 const bool isRenderingMultiview = false/*view.hasStereo() &&*/
+			 /*engine.getConfig().stereoscopicType == StereoscopicType::MULTIVIEW*/;
+		 // FIXME: This is to override some settings that are not supported for multiview at the moment.
+		 // Remove this when all features are supported.
+		 if (isRenderingMultiview) {
+			 hasPostProcess = false;
+			 msaaOptions.enabled = false;
+
+			 // Picking is not supported for multiview rendering. Clear any pending picking queries.
+			 //view.clearPickingQueries();
+		 }
+		 const uint8_t msaaSampleCount = msaaOptions.enabled ? msaaOptions.sampleCount : 1u;
+
+		 if (!hasPostProcess) {
+			 // disable all effects that are part of post-processing
+			 dofOptions.enabled = false;
+			 bloomOptions.enabled = false;
+			 vignetteOptions.enabled = false;
+			 taaOptions.enabled = false;
+			 hasColorGrading = false;
+			 hasDithering = false;
+			 hasFXAA = false;
+			 scale = 1.0f;
+		 }
+		 else {
+			 // This configures post-process materials by setting constant parameters
+			 if (taaOptions.enabled) {
+				 //ppm.configureTemporalAntiAliasingMaterial(taaOptions);
+				 if (taaOptions.upscaling) {
+					 // for now TAA upscaling is incompatible with regular dsr
+					 dsrOptions.enabled = false;
+					 // also, upscaling doesn't work well with quater-resolution SSAO
+					 aoOptions.resolution = 1.0;
+					 // Currently we only support a fixed TAA upscaling ratio
+					 scale = 0.5f;
+				 }
+			 }
+		 }
+
+		 const bool blendModeTranslucent = false/*view.getBlendMode() == BlendMode::TRANSLUCENT*/;
+		 // If the swap-chain is transparent or if we blend into it, we need to allocate our intermediate
+		 // buffers with an alpha channel.
+		 const bool needsAlphaChannel =
+			 false/*(mSwapChain && mSwapChain->isTransparent()) || blendModeTranslucent*/;
+
+		 const bool isProtectedContent = false/*mSwapChain && mSwapChain->isProtected()*/;
+
+		 // Conditions to meet to be able to use the sub-pass rendering path. This is regardless of
+		 // whether the backend supports subpasses (or if they are disabled in the debugRegistry).
+		 const bool isSubpassPossible =
+			 msaaSampleCount <= 1 &&
+			 hasColorGrading &&
+			 !bloomOptions.enabled && !dofOptions.enabled && !taaOptions.enabled;
+
+		 // whether we're scaled at all
+		 bool scaled = any(notEqual(scale, math::float2(1.0f)));
+
+		 filament::Viewport tempvp{ 0,0,1280,1024 };
 		 // vp is the user defined viewport within the View
-		 filament::Viewport vp{0,0,1280,1024 };// view.getViewport();
+		 filament::Viewport const& vp = tempvp;// view.getViewport();
 
 		 // svp is the "rendering" viewport. That is the viewport after dynamic-resolution is applied
 		 // as well as other adjustment, such as the guard band.
@@ -712,29 +804,16 @@ void main(in  PSInput  PSIn,
 				 uint32_t(float(vp.width) * scale.x),
 				 uint32_t(float(vp.height) * scale.y)
 		 };
+		 
+		 // xvp is the viewport relative to svp containing the "interesting" rendering
 		 filament::Viewport xvp = svp;
-		 AmbientOcclusionOptions mAmbientOcclusionOptions{};
-		 auto aoOptions = mAmbientOcclusionOptions;
-		 auto physicalViewport = svp;
-		 auto logicalViewport = filament::Viewport{
-			  int32_t(float(xvp.left) * aoOptions.resolution),
-			  int32_t(float(xvp.bottom) * aoOptions.resolution),
-			 uint32_t(float(xvp.width) * aoOptions.resolution),
-			 uint32_t(float(xvp.height) * aoOptions.resolution) };
 
 		 filament::CameraInfo cameraInfo = computeCameraInfo(mEngine);
-		 bool hasFXAA = false;
-		 bool scaled = false;
-		 bool hasPostProcess = false;
-		 const bool isSubpassPossible = false;
-// 			 msaaSampleCount <= 1 &&
-// 			 hasColorGrading &&
-// 			 !bloomOptions.enabled && !dofOptions.enabled && !taaOptions.enabled;
 
 		 // If fxaa and scaling are not enabled, we're essentially in a very fast rendering path -- in
-		// this case, we would need an extra blit to "resolve" the buffer padding (because there are no
-		// other pass that can do it as a side effect). In this case, it is better to skip the padding,
-		// which won't be helping much.
+		 // this case, we would need an extra blit to "resolve" the buffer padding (because there are no
+		 // other pass that can do it as a side effect). In this case, it is better to skip the padding,
+		 // which won't be helping much.
 		 const bool noBufferPadding = (isSubpassPossible &&
 			 !hasFXAA && !scaled)/* || engine.debug.renderer.disable_buffer_padding*/;
 
@@ -796,51 +875,76 @@ void main(in  PSInput  PSIn,
 			 xvp.bottom = int32_t(guardBand);
 		 }
 
-		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
+		 //view.prepare
+		 {
+			 // scene->prepare
+			 
+			 // setFroxelizerSync
 
+			 // prepareVisibleRenderables
+			 
+			 // setFroxelizerSync
+			
+			 // prepareShadowing
 		 
-		 // prepareShadowing
+			 // PerRenderableUib
+// 			 mRenderableUbh = driver.createBufferObject(mRenderableUBOSize + sizeof(PerRenderableUib), BufferObjectBinding::UNIFORM, BufferUsage::DYNAMIC);
+// 			 scene->updateUBOs(merged, mRenderableUbh);
+// 			 g_scene.prepare();
+// 			 g_scene.prepareVisibleRenderables();
 		 
-		 // PerRenderableUib
-// 		 mRenderableUbh = driver.createBufferObject(mRenderableUBOSize + sizeof(PerRenderableUib), BufferObjectBinding::UNIFORM, BufferUsage::DYNAMIC);
-// 		 scene->updateUBOs(merged, mRenderableUbh);
-// 		 g_scene.prepare();
-// 		 g_scene.prepareVisibleRenderables();
-		 //
-		 prepareLighting(mEngine, cameraInfo);
-		 //
-		 mColorPassDescriptorSet.prepareTime(mEngine, math::float4{0.0f, 0.0f, 0.0f, 0.0f}/*userTime*/);
-		 FogOptions mFogOptions;
-		 math::mat4 fogTransform;
-		 mColorPassDescriptorSet.prepareFog(mEngine, cameraInfo, fogTransform, mFogOptions, mEngine.getDefaultIndirectLight()/*scene->getIndirectLight()*/);
-		 TemporalAntiAliasingOptions mTemporalAntiAliasingOptions;
-		 mColorPassDescriptorSet.prepareTemporalNoise(mEngine, mTemporalAntiAliasingOptions);
-		 mColorPassDescriptorSet.prepareBlending(false/*needsAlphaChannel*/);
-		 std::array<math::float4, 4> mMaterialGlobals = { {
-															{ 0, 0, 0, 1 },
-															{ 0, 0, 0, 1 },
-															{ 0, 0, 0, 1 },
-															{ 0, 0, 0, 1 },
-													} };
-		 mColorPassDescriptorSet.prepareMaterialGlobals(mMaterialGlobals);
-		 //prepareUpscaler
-		 math::float2 scale2{1.0f, 1.0f};
-		 TemporalAntiAliasingOptions taaOptions;
-		 DynamicResolutionOptions dsrOptions;
-		 float bias = 0.0f;
-		 math::float2 derivativesScale{ 1.0f };
-		 if (dsrOptions.enabled && dsrOptions.quality >= QualityLevel::HIGH) {
-			 bias = std::log2(std::min(scale2.x, scale2.y));
+			 /*
+			 * Prepare lighting -- this is where we update the lights UBOs, set up the IBL,
+			 * set up the froxelization parameters.
+			 * Relies on FScene::prepare() and prepareVisibleLights()
+			 */
+
+			 prepareLighting(mEngine, cameraInfo);
+
+			 /*
+			 * Update driver state
+			 */
+			 bool needsAlphaChannel = false;
+			 FogOptions mFogOptions;
+			 math::mat4 fogTransform;
+			 std::array<math::float4, 4> mMaterialGlobals = { {
+																{ 0, 0, 0, 1 },
+																{ 0, 0, 0, 1 },
+																{ 0, 0, 0, 1 },
+																{ 0, 0, 0, 1 },
+														} };
+			 mColorPassDescriptorSet.prepareTime(mEngine, math::float4{ 0.0f, 0.0f, 0.0f, 0.0f }/*userTime*/);
+			 mColorPassDescriptorSet.prepareFog(mEngine, cameraInfo, fogTransform, mFogOptions, mEngine.getDefaultIndirectLight()/*scene->getIndirectLight()*/);
+			 mColorPassDescriptorSet.prepareTemporalNoise(mEngine, mTemporalAntiAliasingOptions);
+			 mColorPassDescriptorSet.prepareBlending(needsAlphaChannel);
+			 mColorPassDescriptorSet.prepareMaterialGlobals(mMaterialGlobals);
 		 }
-		 if (taaOptions.enabled) {
-			 bias += taaOptions.lodBias;
-			 if (taaOptions.upscaling) {
-				 derivativesScale = 0.5f;
+		 //view.prepareUpscaler
+		 {
+			 math::float2 scale{ 1.0f, 1.0f };
+			 TemporalAntiAliasingOptions taaOptions;
+			 DynamicResolutionOptions dsrOptions;
+			 float bias = 0.0f;
+			 math::float2 derivativesScale{ 1.0f };
+			 if (dsrOptions.enabled && dsrOptions.quality >= QualityLevel::HIGH) {
+				 bias = std::log2(std::min(scale.x, scale.y));
 			 }
+			 if (taaOptions.enabled) {
+				 bias += taaOptions.lodBias;
+				 if (taaOptions.upscaling) {
+					 derivativesScale = 0.5f;
+				 }
+			 }
+			 mColorPassDescriptorSet.prepareLodBias(bias, derivativesScale);
 		 }
-		 mColorPassDescriptorSet.prepareLodBias(bias, derivativesScale);
-
-
+		 //
+		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
+		 auto physicalViewport = svp;
+		 auto logicalViewport = xvp;// filament::Viewport{
+// 			  int32_t(float(xvp.left) * aoOptions.resolution),
+// 			  int32_t(float(xvp.bottom) * aoOptions.resolution),
+// 			 uint32_t(float(xvp.width) * aoOptions.resolution),
+// 			 uint32_t(float(xvp.height) * aoOptions.resolution) };
 		 mColorPassDescriptorSet.prepareViewport(physicalViewport, logicalViewport);
 	 }
 	 // split shader source code in three:
@@ -1354,7 +1458,8 @@ void main(in  PSInput  PSIn,
 
 		 // Apply rotation
 		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
-		 g_ObjectMat = *(filament::math::mat4f*)&CubeModelTransform;
+		 auto transform = filament::math::mat4f{ filament::math::mat3f(1), filament::math::float3(0, 0, -4) };
+		 g_ObjectMat = transform * filament::math::mat4f::rotation(CurrTime, filament::math::float3{ 0, 1, 0 });// (*(filament::math::mat4f*)&CubeModelTransform);
 		 // Camera is at (0, 0, -5) looking along the Z axis
 		 float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
 
