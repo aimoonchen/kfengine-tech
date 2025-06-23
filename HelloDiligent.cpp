@@ -1314,16 +1314,32 @@ void main(in  PSInput  PSIn,
 		 PSOCreateInfo.PSODesc.ResourceLayout.Variables = Vars;
 		 PSOCreateInfo.PSODesc.ResourceLayout.NumVariables = _countof(Vars);
 
-		 SamplerDesc SamLinearClampDesc
+		 SamplerDesc ssaoSamplerDesc
+		 {
+			 FILTER_TYPE_POINT, FILTER_TYPE_POINT, FILTER_TYPE_POINT,
+			 TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP
+		 };
+		 ssaoSamplerDesc.MinLOD = -1000;
+		 ssaoSamplerDesc.MaxLOD = 1000;
+		 SamplerDesc iblDFGSamplerDesc
+		 {
+			 FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR, FILTER_TYPE_POINT,
+			 TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP
+		 };
+		 iblDFGSamplerDesc.MinLOD = -1000;
+		 iblDFGSamplerDesc.MaxLOD = 1000;
+		 SamplerDesc iblSpecularSamplerDesc
 		 {
 			 FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR, FILTER_TYPE_LINEAR,
 			 TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP, TEXTURE_ADDRESS_CLAMP
 		 };
+		 iblSpecularSamplerDesc.MinLOD = -1000;
+		 iblSpecularSamplerDesc.MaxLOD = 1000;
 		 ImmutableSamplerDesc ImtblSamplers[] =
 		 {
-			 {SHADER_TYPE_PIXEL, "sampler0_ssao", SamLinearClampDesc},
-			 {SHADER_TYPE_PIXEL, "sampler0_iblDFG", SamLinearClampDesc},
-			 {SHADER_TYPE_PIXEL, "sampler0_iblSpecular", SamLinearClampDesc}
+			 {SHADER_TYPE_PIXEL, "sampler0_ssao", ssaoSamplerDesc},
+			 {SHADER_TYPE_PIXEL, "sampler0_iblDFG", iblDFGSamplerDesc},
+			 {SHADER_TYPE_PIXEL, "sampler0_iblSpecular", iblSpecularSamplerDesc}
 		 };
 		 PSOCreateInfo.PSODesc.ResourceLayout.ImmutableSamplers = ImtblSamplers;
 		 PSOCreateInfo.PSODesc.ResourceLayout.NumImmutableSamplers = _countof(ImtblSamplers);
