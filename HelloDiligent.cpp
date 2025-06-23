@@ -28,7 +28,7 @@
  #include <memory>
  #include <iomanip>
  #include <iostream>
- 
+#include<chrono>
  #ifndef NOMINMAX
  #    define NOMINMAX
  #endif
@@ -229,6 +229,8 @@ void main(in  PSInput  PSIn,
 // }
 //  )";
 
+ using Epoch = std::chrono::steady_clock::time_point;
+
  extern filament::FEngine* g_FilamentEngine;
  extern filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet;
  extern filament::math::mat4f g_ObjectMat;
@@ -249,7 +251,8 @@ void main(in  PSInput  PSIn,
 		 :
 		 mEngine(engine),
 		 mUniforms(engine.getDriverApi()),
-		 mColorPassDescriptorSet(engine, mUniforms)
+		 mColorPassDescriptorSet(engine, mUniforms),
+		 mUserEpoch(std::chrono::steady_clock::now())
      {
 		 g_mColorPassDescriptorSet = &mColorPassDescriptorSet;
      }
@@ -528,7 +531,6 @@ void main(in  PSInput  PSIn,
 			 }
 			 TextureData InitData{ SubresData.data(), TexDesc_ssao.MipLevels * TexDesc_ssao.ArraySize };
 			 // Create the texture array
-			 RefCntAutoPtr<ITexture> mDummyOneTextureArray;
 			 m_pDevice->CreateTexture(TexDesc_ssao, &InitData, &mDummyOneTextureArray);
 			 // Get shader resource view from the texture
 			 m_TextureSRV_ssao = mDummyOneTextureArray->GetDefaultView(TEXTURE_VIEW_SHADER_RESOURCE);
@@ -537,7 +539,13 @@ void main(in  PSInput  PSIn,
 		 //m_SRB_ssao->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_ssao")->Set(m_TextureSRV_ssao);
 		 m_SRB->GetVariableByName(SHADER_TYPE_PIXEL, "sampler0_ssao")->Set(m_TextureSRV_ssao);
 		 //
-		 TexDim = 128;
+		 constexpr size_t DFG_LUT_SIZE = 128;
+		 constexpr size_t fp16Count = DFG_LUT_SIZE * DFG_LUT_SIZE * 3;
+		 constexpr size_t byteCount = fp16Count * sizeof(uint16_t);
+		 const uint16_t DFG_LUT[] = {
+#include "D:/filament-1.59.4/out/filament/generated/data/dfg.inc"
+		 };
+		 TexDim = DFG_LUT_SIZE;
 		 TextureDesc TexDesc_iblDFG;
 		 TexDesc_iblDFG.Name = "texture for iblDFG";
 		 TexDesc_iblDFG.Type = RESOURCE_DIM_TEX_2D;
@@ -547,8 +555,18 @@ void main(in  PSInput  PSIn,
 		 TexDesc_iblDFG.Height = TexDim;
 		 TexDesc_iblDFG.Format = TEX_FORMAT_RGBA16_FLOAT;
 		 {
-			 std::vector<Uint64> Data(TexDim * TexDim, 0xFFFFFFFFFFFFFFFF);
-			 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 };
+			 std::vector<uint16_t> Data(DFG_LUT_SIZE * DFG_LUT_SIZE * 4, 0xFFFF);
+			 uint16_t* pdst = &Data[0];
+			 const uint16_t* psrc = &DFG_LUT[0];
+			 for (int i = 0; i < DFG_LUT_SIZE; i++) {
+				 for (int j = 0; j < DFG_LUT_SIZE; j++) {
+					 *pdst++ = *psrc++;
+					 *pdst++ = *psrc++;
+					 *pdst++ = *psrc++;
+					 pdst++;
+				 }
+			 }
+			 TextureSubResData   Level0Data{ Data.data(), TexDim * 4 * 2 };
 			 TextureData         InitData{ &Level0Data, 1 };
 			 RefCntAutoPtr<ITexture> Tex;
 			 m_pDevice->CreateTexture(TexDesc_iblDFG, &InitData, &Tex);
@@ -709,6 +727,7 @@ void main(in  PSInput  PSIn,
 			 .castShadows(false)
 			 .build(*g_FilamentEngine, g_FilamentSun/*app.light*/);
 	 }
+	 filament::math::float4 getShaderUserTime() const { return mShaderUserTime; }
 	 void PrepareRender()
 	 {
 		 using namespace filament;
@@ -913,7 +932,7 @@ void main(in  PSInput  PSIn,
 																{ 0, 0, 0, 1 },
 																{ 0, 0, 0, 1 },
 														} };
-			 mColorPassDescriptorSet.prepareTime(mEngine, math::float4{ 0.0f, 0.0f, 0.0f, 0.0f }/*userTime*/);
+			 mColorPassDescriptorSet.prepareTime(mEngine, getShaderUserTime());
 			 mColorPassDescriptorSet.prepareFog(mEngine, cameraInfo, fogTransform, mFogOptions, mEngine.getDefaultIndirectLight()/*scene->getIndirectLight()*/);
 			 mColorPassDescriptorSet.prepareTemporalNoise(mEngine, mTemporalAntiAliasingOptions);
 			 mColorPassDescriptorSet.prepareBlending(needsAlphaChannel);
@@ -939,6 +958,26 @@ void main(in  PSInput  PSIn,
 		 }
 		 //
 		 mColorPassDescriptorSet.prepareCamera(mEngine, cameraInfo);
+
+
+		 // color pass
+// 		 view.prepareSSAO(data.ssao ?
+// 			 resources.getTexture(data.ssao) : engine.getOneTextureArray());
+// 
+// 		 // set screen-space reflections and screen-space refractions
+// 		 TextureHandle const ssr = data.ssr ?
+// 			 resources.getTexture(data.ssr) : engine.getOneTextureArray();
+// 		 view.prepareSSR(ssr, config.screenSpaceReflectionHistoryNotReady,
+// 			 config.ssrLodOffset, view.getScreenSpaceReflectionsOptions());
+
+		 
+
+		 mColorPassDescriptorSet.prepareSSAO({}, mAmbientOcclusionOptions);
+
+		 ScreenSpaceReflectionsOptions mScreenSpaceReflectionsOptions;
+		 mColorPassDescriptorSet.prepareSSR({}, false,
+			 7.55514145f, mScreenSpaceReflectionsOptions);
+		 //
 		 auto physicalViewport = svp;
 		 auto logicalViewport = xvp;// filament::Viewport{
 // 			  int32_t(float(xvp.left) * aoOptions.resolution),
@@ -946,6 +985,7 @@ void main(in  PSInput  PSIn,
 // 			 uint32_t(float(xvp.width) * aoOptions.resolution),
 // 			 uint32_t(float(xvp.height) * aoOptions.resolution) };
 		 mColorPassDescriptorSet.prepareViewport(physicalViewport, logicalViewport);
+
 	 }
 	 // split shader source code in three:
 // - the version line
@@ -1455,6 +1495,19 @@ void main(in  PSInput  PSIn,
 	 void Update(double CurrTime, double ElapsedTime, bool DoUpdateUI)
 	 {
 		 //SampleBase::Update(CurrTime, ElapsedTime, DoUpdateUI);
+		 // get the timestamp as soon as possible
+		 //
+		 uint64_t vsyncSteadyClockTimeNano = 0u;
+		 using namespace std::chrono;
+		 const steady_clock::time_point now{ steady_clock::now() };
+		 const steady_clock::time_point userVsync{ steady_clock::duration(vsyncSteadyClockTimeNano) };
+		 const time_point<steady_clock> appVsync(vsyncSteadyClockTimeNano ? userVsync : now);
+
+		 // latch the frame time
+		 std::chrono::duration<double> const time(appVsync - mUserEpoch);
+		 float const h = float(time.count());
+		 float const l = float(time.count() - h);
+		 mShaderUserTime = { h, l, 0, 0 };
 
 		 // Apply rotation
 		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
@@ -1503,6 +1556,9 @@ void main(in  PSInput  PSIn,
 // 	 uniform sampler2DArray sampler0_ssao;
 // 	 uniform sampler2D sampler0_iblDFG;
 // 	 uniform samplerCube sampler0_iblSpecular;
+	 RefCntAutoPtr<ITexture> mDummyOneTextureArray;
+	 Epoch mUserEpoch;
+	 filament::math::float4 mShaderUserTime{};
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_ssao;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblDFG;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblSpecular;
