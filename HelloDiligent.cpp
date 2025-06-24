@@ -88,6 +88,7 @@
 #include "details/MaterialInstance.h"
 #include "ds/ColorPassDescriptorSet.h"
 #include "ds/TypedUniformBuffer.h"
+#include "vulkan/utils/Spirv.h"
 #include <filameshio/MeshReader.h>
 #include <fcntl.h>
 #if !defined(WIN32)
@@ -1023,145 +1024,164 @@ void main(in  PSInput  PSIn,
 			 return;
 		 }
 		 using namespace filament::backend;
-		 // opengl
-		 Program::ShaderSource shadersSource = std::move(program.getShadersSource());
-		 utils::FixedCapacityVector<Program::SpecializationConstant> const& specializationConstants = program.getSpecializationConstants();
-		 bool multiview = false;
+		 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
+			 // opengl
+			 Program::ShaderSource shadersSource = std::move(program.getShadersSource());
+			 utils::FixedCapacityVector<Program::SpecializationConstant> const& specializationConstants = program.getSpecializationConstants();
+			 bool multiview = false;
 
-		 auto appendSpecConstantString = +[](std::string& s, Program::SpecializationConstant const& sc) {
-			 s += "#define SPIRV_CROSS_CONSTANT_ID_" + std::to_string(sc.id) + ' ';
-			 s += std::visit([](auto&& arg) { return to_string(arg); }, sc.value);
-			 s += '\n';
-			 return s;
-			 };
+			 auto appendSpecConstantString = +[](std::string& s, Program::SpecializationConstant const& sc) {
+				 s += "#define SPIRV_CROSS_CONSTANT_ID_" + std::to_string(sc.id) + ' ';
+				 s += std::visit([](auto&& arg) { return to_string(arg); }, sc.value);
+				 s += '\n';
+				 return s;
+				 };
 
-		 std::string specializationConstantString;
-		 int32_t numViews = 2;
-		 for (auto const& sc : specializationConstants) {
-			 appendSpecConstantString(specializationConstantString, sc);
-			 if (sc.id == 8) {
-				 // This constant must match
-				 // ReservedSpecializationConstants::CONFIG_STEREO_EYE_COUNT
-				 // which we can't use here because it's defined in EngineEnums.h.
-				 // (we're breaking layering here, but it's for the good cause).
-				 numViews = std::get<int32_t>(sc.value);
+			 std::string specializationConstantString;
+			 int32_t numViews = 2;
+			 for (auto const& sc : specializationConstants) {
+				 appendSpecConstantString(specializationConstantString, sc);
+				 if (sc.id == 8) {
+					 // This constant must match
+					 // ReservedSpecializationConstants::CONFIG_STEREO_EYE_COUNT
+					 // which we can't use here because it's defined in EngineEnums.h.
+					 // (we're breaking layering here, but it's for the good cause).
+					 numViews = std::get<int32_t>(sc.value);
+				 }
 			 }
-		 }
-		 if (!specializationConstantString.empty()) {
-			 specializationConstantString += '\n';
-		 }
+			 if (!specializationConstantString.empty()) {
+				 specializationConstantString += '\n';
+			 }
 
-		 // build all shaders
-		for (size_t i = 0; i < Program::SHADER_TYPE_COUNT; i++) {
-			const ShaderStage stage = static_cast<ShaderStage>(i);
-// 				 GLenum glShaderType{};
-// 				 switch (stage) {
-// 				 case ShaderStage::VERTEX:
-// 					 glShaderType = GL_VERTEX_SHADER;
-// 					 break;
-// 				 case ShaderStage::FRAGMENT:
-// 					 glShaderType = GL_FRAGMENT_SHADER;
-// 					 break;
-// 				 case ShaderStage::COMPUTE:
-// #if defined(BACKEND_OPENGL_LEVEL_GLES31)
-// 					 glShaderType = GL_COMPUTE_SHADER;
-// #else
-// 					 continue;
-// #endif
-// 					 break;
-// 				 }
+			 // build all shaders
+			for (size_t i = 0; i < Program::SHADER_TYPE_COUNT; i++) {
+				const ShaderStage stage = static_cast<ShaderStage>(i);
+	// 				 GLenum glShaderType{};
+	// 				 switch (stage) {
+	// 				 case ShaderStage::VERTEX:
+	// 					 glShaderType = GL_VERTEX_SHADER;
+	// 					 break;
+	// 				 case ShaderStage::FRAGMENT:
+	// 					 glShaderType = GL_FRAGMENT_SHADER;
+	// 					 break;
+	// 				 case ShaderStage::COMPUTE:
+	// #if defined(BACKEND_OPENGL_LEVEL_GLES31)
+	// 					 glShaderType = GL_COMPUTE_SHADER;
+	// #else
+	// 					 continue;
+	// #endif
+	// 					 break;
+	// 				 }
 
-			if (!shadersSource[i].empty()) {
-				Program::ShaderBlob& shader = shadersSource[i];
-				char* shader_src = reinterpret_cast<char*>(shader.data());
-				size_t shader_len = shader.size();
+				if (!shadersSource[i].empty()) {
+					Program::ShaderBlob& shader = shadersSource[i];
+					char* shader_src = reinterpret_cast<char*>(shader.data());
+					size_t shader_len = shader.size();
 
-				// remove GOOGLE_cpp_style_line_directive
-				//process_GOOGLE_cpp_style_line_directive(context, shader_src, shader_len);
+					// remove GOOGLE_cpp_style_line_directive
+					//process_GOOGLE_cpp_style_line_directive(context, shader_src, shader_len);
 
-				// replace the value of layout(num_views = X) for multiview extension
-// 					 if (multiview && stage == ShaderStage::VERTEX) {
-// 						 process_OVR_multiview2(context, numViews, shader_src, shader_len);
-// 					 }
+					// replace the value of layout(num_views = X) for multiview extension
+	// 					 if (multiview && stage == ShaderStage::VERTEX) {
+	// 						 process_OVR_multiview2(context, numViews, shader_src, shader_len);
+	// 					 }
 
-				// add support for ARB_shading_language_packing if needed
-				//auto const packingFunctions = process_ARB_shading_language_packing(context);
-				std::string_view packingFunctions;
-				// split shader source, so we can insert the specialization constants and the packing
-				// functions
-				auto [version, prolog, body] = splitShaderSource({ shader_src, shader_len });
+					// add support for ARB_shading_language_packing if needed
+					//auto const packingFunctions = process_ARB_shading_language_packing(context);
+					std::string_view packingFunctions;
+					// split shader source, so we can insert the specialization constants and the packing
+					// functions
+					auto [version, prolog, body] = splitShaderSource({ shader_src, shader_len });
 
-				// enable ESSL 3.10 if available
-// 					 if (context.isAtLeastGLES<3, 1>()) {
-// 						 version = "#version 310 es\n";
-// 					 }
+					// enable ESSL 3.10 if available
+	// 					 if (context.isAtLeastGLES<3, 1>()) {
+	// 						 version = "#version 310 es\n";
+	// 					 }
 
-				std::array<std::string_view, 5> sources = {
-					version,
-					prolog,
-					specializationConstantString,
-					packingFunctions,
-					{ body.data(), body.size() - 1 }  // null-terminated
-				};
+					std::array<std::string_view, 5> sources = {
+						version,
+						prolog,
+						specializationConstantString,
+						packingFunctions,
+						{ body.data(), body.size() - 1 }  // null-terminated
+					};
 
-				// Some of the sources may be zero-length. Remove them as to avoid passing lengths of
-				// zero to glShaderSource(). glShaderSource should work with lengths of zero, but some
-				// drivers instead interpret zero as a sentinel for a null-terminated string.
-				auto partitionPoint = std::stable_partition(
-					sources.begin(), sources.end(), [](std::string_view s) { return !s.empty(); });
-				size_t count = std::distance(sources.begin(), partitionPoint);
+					// Some of the sources may be zero-length. Remove them as to avoid passing lengths of
+					// zero to glShaderSource(). glShaderSource should work with lengths of zero, but some
+					// drivers instead interpret zero as a sentinel for a null-terminated string.
+					auto partitionPoint = std::stable_partition(
+						sources.begin(), sources.end(), [](std::string_view s) { return !s.empty(); });
+					size_t count = std::distance(sources.begin(), partitionPoint);
 
-				std::array<const char*, 5> shaderStrings;
-				std::array<int, 5> lengths;
-				for (size_t i = 0; i < count; i++) {
-					shaderStrings[i] = sources[i].data();
-					lengths[i] = sources[i].size();
-				}
-				std::string* outstring;
-				FILE* fd = nullptr;
-				//std::ofstream file("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", std::ios::out | std::ios::trunc);
-				if (stage == ShaderStage::VERTEX) {
-					fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", "w+");
-					outstring = &mVSSource;
-				}
-				else if (stage == ShaderStage::FRAGMENT) {
-					fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat.frag", "w+");
-					outstring = &mPSSource;
-				}
-				if (fd) {
-					for (auto& it : sources) {
-						if (!it.empty()) {
-							fwrite(it.data(), it.size(), 1, fd);
-							outstring->append(it.data(), it.size());
-						}
+					std::array<const char*, 5> shaderStrings;
+					std::array<int, 5> lengths;
+					for (size_t i = 0; i < count; i++) {
+						shaderStrings[i] = sources[i].data();
+						lengths[i] = sources[i].size();
 					}
-					fclose(fd);
+					std::string* outstring;
+					FILE* fd = nullptr;
+					//std::ofstream file("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", std::ios::out | std::ios::trunc);
+					if (stage == ShaderStage::VERTEX) {
+						fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat.vert", "w+");
+						outstring = &mVSSource;
+					}
+					else if (stage == ShaderStage::FRAGMENT) {
+						fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat.frag", "w+");
+						outstring = &mPSSource;
+					}
+					if (fd) {
+						for (auto& it : sources) {
+							if (!it.empty()) {
+								fwrite(it.data(), it.size(), 1, fd);
+								outstring->append(it.data(), it.size());
+							}
+						}
+						fclose(fd);
+					}
 				}
 			}
-		}
-		 // vulkan
-// 		 constexpr uint8_t const MAX_SHADER_MODULES = 2;
-// 		 Program::ShaderSource const& blobs = builder.getShadersSource();
-// 		 //auto& modules = mInfo->shaders;
-// 		 auto const& specializationConstants = builder.getSpecializationConstants();
-// 		 std::vector<uint32_t> shader;
-// 
-// 		 static_assert(static_cast<ShaderStage>(0) == ShaderStage::VERTEX &&
-// 			 static_cast<ShaderStage>(1) == ShaderStage::FRAGMENT &&
-// 			 MAX_SHADER_MODULES == 2);
-// 
-// 		 for (size_t i = 0; i < MAX_SHADER_MODULES; i++) {
-// 			 Program::ShaderBlob const& blob = blobs[i];
-// 
-// 			 uint32_t* data = (uint32_t*)blob.data();
-// 			 size_t dataSize = blob.size();
-// 
-// 			 if (!specializationConstants.empty()) {
-// 				 //fvkutils::workaroundSpecConstant(blob, specializationConstants, shader);
-// 				 data = (uint32_t*)shader.data();
-// 				 dataSize = shader.size() * 4;
-// 			 }
-// 		 }
+		} else if (m_DeviceType == RENDER_DEVICE_TYPE_VULKAN) {
+			 // vulkan
+			 constexpr uint8_t const MAX_SHADER_MODULES = 2;
+			 Program::ShaderSource const& blobs = program.getShadersSource();
+			 //auto& modules = mInfo->shaders;
+			 auto const& specializationConstants = program.getSpecializationConstants();
+			 std::vector<uint32_t> shader;
+
+			 static_assert(static_cast<ShaderStage>(0) == ShaderStage::VERTEX &&
+				 static_cast<ShaderStage>(1) == ShaderStage::FRAGMENT &&
+				 MAX_SHADER_MODULES == 2);
+
+			 for (size_t i = 0; i < MAX_SHADER_MODULES; i++) {
+				 Program::ShaderBlob const& blob = blobs[i];
+
+				 uint32_t* data = (uint32_t*)blob.data();
+				 size_t dataSize = blob.size();
+
+				 if (!specializationConstants.empty()) {
+					 fvkutils::workaroundSpecConstant(blob, specializationConstants, shader);
+					 data = (uint32_t*)shader.data();
+					 dataSize = shader.size() * 4;
+				 }
+				 const ShaderStage stage = static_cast<ShaderStage>(i);
+				 std::vector<uint32_t>* outdata;
+				 FILE* fd = nullptr;
+				 if (stage == ShaderStage::VERTEX) {
+					 fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat_vk.vert", "w+");
+					 outdata = &mVSSourceVK;
+				 }
+				 else if (stage == ShaderStage::FRAGMENT) {
+					 fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat_vk.frag", "w+");
+					 outdata = &mPSSourceVK;
+				 }
+				 if (fd) {
+					 outdata->assign(data, dataSize);
+					fwrite(data, dataSize, 1, fd);
+					fclose(fd);
+				 }
+			 }
+		 }
 	 }
 
 	 void CreatePipelineState()
@@ -1590,6 +1610,8 @@ void main(in  PSInput  PSIn,
 	 filament::FEngine& mEngine;
 	 std::string mVSSource;
 	 std::string mPSSource;
+	 std::vector<uint32_t> mVSSourceVK;
+	 std::vector<uint32_t> mPSSourceVK;
  };
  
  std::unique_ptr<Tutorial00App> g_pTheApp;
