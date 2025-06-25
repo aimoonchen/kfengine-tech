@@ -28,6 +28,7 @@
  #include <memory>
  #include <iomanip>
  #include <iostream>
+#include <span>
 #include<chrono>
  #ifndef NOMINMAX
  #    define NOMINMAX
@@ -143,37 +144,6 @@ void main(in  VSInput VSIn,
     PSIn.Color = VSIn.Color;
 }
 )";
-// 	 R"(
-// cbuffer Constants
-// {
-//     float4x4 g_WorldViewProj;
-// };
-// 
-// // Vertex shader takes two inputs: vertex position and uv coordinates.
-// // By convention, Diligent Engine expects vertex shader inputs to be 
-// // labeled 'ATTRIBn', where n is the attribute number.
-// struct VSInput
-// {
-//     float3 Pos : ATTRIB0;
-//     float2 UV  : ATTRIB1;
-// };
-// 
-// struct PSInput 
-// { 
-//     float4 Pos : SV_POSITION; 
-//     float2 UV  : TEX_COORD; 
-// };
-// 
-// // Note that if separate shader objects are not supported (this is only the case for old GLES3.0 devices), vertex
-// // shader output variable name must match exactly the name of the pixel shader input variable.
-// // If the variable has structure type (like in this example), the structure declarations must also be identical.
-// void main(in  VSInput VSIn,
-//           out PSInput PSIn) 
-// {
-//     PSIn.Pos = mul( float4(VSIn.Pos,1.0), g_WorldViewProj);
-//     PSIn.UV  = VSIn.UV;
-// }
-//  )";
  
  // Pixel shader simply outputs interpolated vertex color
  static const char* PSSource =
@@ -203,32 +173,7 @@ void main(in  PSInput  PSIn,
     PSOut.Color = Color;
 }
 )";
-// 	 R"(
-// Texture2D    g_Texture;
-// SamplerState g_Texture_sampler; // By convention, texture samplers must use the '_sampler' suffix
-// 
-// struct PSInput
-// {
-//     float4 Pos : SV_POSITION;
-//     float2 UV  : TEX_COORD;
-// };
-// 
-// struct PSOutput
-// {
-//     float4 Color : SV_TARGET;
-// };
-// 
-// void main(in  PSInput  PSIn,
-//           out PSOutput PSOut)
-// {
-//     float4 Color = g_Texture.Sample(g_Texture_sampler, PSIn.UV);
-// #if CONVERT_PS_OUTPUT_TO_GAMMA
-//     // Use fast approximation for gamma correction.
-//     Color.rgb = pow(Color.rgb, float3(1.0 / 2.2, 1.0 / 2.2, 1.0 / 2.2));
-// #endif
-//     PSOut.Color = Color;
-// }
-//  )";
+
 
  using Epoch = std::chrono::steady_clock::time_point;
 
@@ -1025,7 +970,6 @@ void main(in  PSInput  PSIn,
 		 }
 		 using namespace filament::backend;
 		 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
-			 // opengl
 			 Program::ShaderSource shadersSource = std::move(program.getShadersSource());
 			 utils::FixedCapacityVector<Program::SpecializationConstant> const& specializationConstants = program.getSpecializationConstants();
 			 bool multiview = false;
@@ -1142,7 +1086,6 @@ void main(in  PSInput  PSIn,
 				}
 			}
 		} else if (m_DeviceType == RENDER_DEVICE_TYPE_VULKAN) {
-			 // vulkan
 			 constexpr uint8_t const MAX_SHADER_MODULES = 2;
 			 Program::ShaderSource const& blobs = program.getShadersSource();
 			 //auto& modules = mInfo->shaders;
@@ -1176,7 +1119,8 @@ void main(in  PSInput  PSIn,
 					 outdata = &mPSSourceVK;
 				 }
 				 if (fd) {
-					 outdata->assign(data, dataSize);
+					 std::span<uint32_t> temp(data, dataSize / 4);
+					 outdata->assign(temp.begin(), temp.end());
 					fwrite(data, dataSize, 1, fd);
 					fclose(fd);
 				 }
@@ -1215,8 +1159,10 @@ void main(in  PSInput  PSIn,
 		 ShaderCreateInfo ShaderCI;
 		 // Tell the system that the shader source code is in HLSL.
 		 // For OpenGL, the engine will convert this into GLSL under the hood.
-		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_GLSL_VERBATIM;// SHADER_SOURCE_LANGUAGE_HLSL;
-
+		 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_DEFAULT;
+		 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
+			 ShaderCI.SourceLanguage = SHADER_SOURCE_LANGUAGE_GLSL_VERBATIM;// SHADER_SOURCE_LANGUAGE_HLSL;
+		 }
 		 // OpenGL backend requires emulated combined HLSL texture samplers (g_Texture + g_Texture_sampler combination)
 		 //ShaderCI.Desc.UseCombinedTextureSamplers = true;
 
@@ -1242,8 +1188,10 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.EntryPoint = "main";
 			 ShaderCI.Desc.Name = "Cube VS";
 			 //ShaderCI.FilePath = "cube.vsh";
-			 ShaderCI.Source = mVSSource.data();// VSSource;//
-			 ShaderCI.SourceLength = mVSSource.length();
+// 			 ShaderCI.Source = mVSSource.data();
+// 			 ShaderCI.SourceLength = mVSSource.length();
+			 ShaderCI.ByteCode = mVSSourceVK.data();
+			 ShaderCI.ByteCodeSize = mVSSourceVK.size() * sizeof(uint32_t);
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
@@ -1273,8 +1221,10 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.EntryPoint = "main";
 			 ShaderCI.Desc.Name = "Cube PS";
 			 //ShaderCI.FilePath = "cube.psh";
-			 ShaderCI.Source = mPSSource.data();// PSSource;//
-			 ShaderCI.SourceLength = mPSSource.length();
+// 			 ShaderCI.Source = mPSSource.data();
+// 			 ShaderCI.SourceLength = mPSSource.length();
+			 ShaderCI.ByteCode = mPSSourceVK.data();
+			 ShaderCI.ByteCodeSize = mPSSourceVK.size() * sizeof(uint32_t);
 			 m_pDevice->CreateShader(ShaderCI, &pPS);
 
 			 BufferDesc lightDesc;
