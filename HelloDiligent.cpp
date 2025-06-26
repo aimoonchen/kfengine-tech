@@ -1111,17 +1111,17 @@ void main(in  PSInput  PSIn,
 				 std::vector<uint32_t>* outdata;
 				 FILE* fd = nullptr;
 				 if (stage == ShaderStage::VERTEX) {
-					 fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat_vk.vert", "w+");
+					 fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat_vk.vert", "wb+");
 					 outdata = &mVSSourceVK;
 				 }
 				 else if (stage == ShaderStage::FRAGMENT) {
-					 fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat_vk.frag", "w+");
+					 fd = fopen("D:\\Github\\kfengine-tech\\aiDefaultMat_vk.frag", "wb+");
 					 outdata = &mPSSourceVK;
 				 }
 				 if (fd) {
 					 std::span<uint32_t> temp(data, dataSize / 4);
 					 outdata->assign(temp.begin(), temp.end());
-					fwrite(data, dataSize, 1, fd);
+					fwrite(outdata->data(), sizeof(uint32_t), outdata->size(), fd);
 					fclose(fd);
 				 }
 			 }
