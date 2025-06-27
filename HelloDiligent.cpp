@@ -71,7 +71,7 @@
 #include "Graphics/GraphicsEngine/interface/GraphicsTypes.h"
 #include "Graphics/GraphicsTools/interface/MapHelper.hpp"
 #include "Graphics/GraphicsTools/interface/GraphicsUtilities.h"
-
+#include "Platforms/Basic/interface/BasicPlatformDebug.hpp"
  #include "Common/interface/RefCntAutoPtr.hpp"
 #include "Common/interface/BasicMath.hpp"
 
