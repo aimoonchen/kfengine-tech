@@ -1151,7 +1151,12 @@ void main(in  PSInput  PSIn,
 		 // Primitive topology defines what kind of primitives will be rendered by this pipeline state
 		 PSOCreateInfo.GraphicsPipeline.PrimitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		 // Cull back faces
-		 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_BACK;
+		 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
+			 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_FRONT;
+		 }
+		 else if (m_DeviceType == RENDER_DEVICE_TYPE_VULKAN) {
+			 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_BACK;
+		 }
 		 // Enable depth testing
 		 PSOCreateInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = True;
 		 // clang-format on
@@ -1188,10 +1193,14 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.EntryPoint = "main";
 			 ShaderCI.Desc.Name = "Cube VS";
 			 //ShaderCI.FilePath = "cube.vsh";
-// 			 ShaderCI.Source = mVSSource.data();
-// 			 ShaderCI.SourceLength = mVSSource.length();
-			 ShaderCI.ByteCode = mVSSourceVK.data();
-			 ShaderCI.ByteCodeSize = mVSSourceVK.size() * sizeof(uint32_t);
+			 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
+				 ShaderCI.Source = mVSSource.data();
+				 ShaderCI.SourceLength = mVSSource.length();
+			 }
+			 else if (m_DeviceType == RENDER_DEVICE_TYPE_VULKAN) {
+				 ShaderCI.ByteCode = mVSSourceVK.data();
+				 ShaderCI.ByteCodeSize = mVSSourceVK.size() * sizeof(uint32_t);
+			 }
 			 m_pDevice->CreateShader(ShaderCI, &pVS);
 			 // Create dynamic uniform buffer that will store our transformation matrix
 			 // Dynamic buffers can be frequently updated by the CPU
@@ -1221,10 +1230,14 @@ void main(in  PSInput  PSIn,
 			 ShaderCI.EntryPoint = "main";
 			 ShaderCI.Desc.Name = "Cube PS";
 			 //ShaderCI.FilePath = "cube.psh";
-// 			 ShaderCI.Source = mPSSource.data();
-// 			 ShaderCI.SourceLength = mPSSource.length();
-			 ShaderCI.ByteCode = mPSSourceVK.data();
-			 ShaderCI.ByteCodeSize = mPSSourceVK.size() * sizeof(uint32_t);
+			 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
+				 ShaderCI.Source = mPSSource.data();
+				 ShaderCI.SourceLength = mPSSource.length();
+			 }
+			 else if (m_DeviceType == RENDER_DEVICE_TYPE_VULKAN) {
+				 ShaderCI.ByteCode = mPSSourceVK.data();
+				 ShaderCI.ByteCodeSize = mPSSourceVK.size() * sizeof(uint32_t);
+			 }
 			 m_pDevice->CreateShader(ShaderCI, &pPS);
 
 			 BufferDesc lightDesc;
@@ -1329,9 +1342,6 @@ void main(in  PSInput  PSIn,
 
 		 // Create a shader resource binding object and bind all static resources in it
 		 m_pPSO->CreateShaderResourceBinding(&m_SRB, true);
-// 		 m_pPSO->CreateShaderResourceBinding(&m_SRB_ssao, true);
-// 		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblDFG, true);
-// 		 m_pPSO->CreateShaderResourceBinding(&m_SRB_iblSpecular, true);
 	 }
 	 void UpdateUniform()
 	 {
@@ -1498,7 +1508,7 @@ void main(in  PSInput  PSIn,
 		 // Apply rotation
 		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
 		 auto transform = filament::math::mat4f{ filament::math::mat3f(1), filament::math::float3(0, 0, -4) };
-		 g_ObjectMat = transform * filament::math::mat4f::rotation(CurrTime, filament::math::float3{ 0, 1, 0 });// (*(filament::math::mat4f*)&CubeModelTransform);
+		 g_ObjectMat = transform;// *filament::math::mat4f::rotation(CurrTime, filament::math::float3{ 0, 1, 0 });// (*(filament::math::mat4f*)&CubeModelTransform);
 		 // Camera is at (0, 0, -5) looking along the Z axis
 		 float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
 
