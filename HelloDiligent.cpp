@@ -211,6 +211,7 @@ void main(in  PSInput  PSIn,
      bool InitializeDiligentEngine(HWND hWnd)
      {
          SwapChainDesc SCDesc;
+		 SCDesc.ColorBufferFormat = TEX_FORMAT_RGBA8_UNORM;
          switch (m_DeviceType)
          {
  #if D3D11_SUPPORTED
@@ -1151,14 +1152,16 @@ void main(in  PSInput  PSIn,
 		 // Primitive topology defines what kind of primitives will be rendered by this pipeline state
 		 PSOCreateInfo.GraphicsPipeline.PrimitiveTopology = PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
 		 // Cull back faces
+		 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.FrontCounterClockwise = True;
 		 if (m_DeviceType == RENDER_DEVICE_TYPE_GL) {
-			 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_FRONT;
+			 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_BACK;
 		 }
 		 else if (m_DeviceType == RENDER_DEVICE_TYPE_VULKAN) {
-			 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_BACK;
+			 PSOCreateInfo.GraphicsPipeline.RasterizerDesc.CullMode = CULL_MODE_FRONT;
 		 }
 		 // Enable depth testing
 		 PSOCreateInfo.GraphicsPipeline.DepthStencilDesc.DepthEnable = True;
+		 PSOCreateInfo.GraphicsPipeline.DepthStencilDesc.DepthFunc = COMPARISON_FUNC_GREATER_EQUAL;
 		 // clang-format on
 
 		 ShaderCreateInfo ShaderCI;
@@ -1389,7 +1392,7 @@ void main(in  PSInput  PSIn,
 // 			 ClearColor = LinearToSRGB(ClearColor);
 // 		 }
 		 m_pImmediateContext->ClearRenderTarget(pRTV, ClearColor.Data(), RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-		 m_pImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 1.f, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
+		 m_pImmediateContext->ClearDepthStencil(pDSV, CLEAR_DEPTH_FLAG, 0.f, 0, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		 {
 			 // Map the buffer and write current world-view-projection matrix
@@ -1508,7 +1511,7 @@ void main(in  PSInput  PSIn,
 		 // Apply rotation
 		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
 		 auto transform = filament::math::mat4f{ filament::math::mat3f(1), filament::math::float3(0, 0, -4) };
-		 g_ObjectMat = transform;// *filament::math::mat4f::rotation(CurrTime, filament::math::float3{ 0, 1, 0 });// (*(filament::math::mat4f*)&CubeModelTransform);
+		 g_ObjectMat = transform * filament::math::mat4f::rotation(CurrTime, filament::math::float3{ 0, 1, 0 });// (*(filament::math::mat4f*)&CubeModelTransform);
 		 // Camera is at (0, 0, -5) looking along the Z axis
 		 float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
 
