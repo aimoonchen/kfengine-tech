@@ -74,6 +74,8 @@
 #include "Platforms/Basic/interface/BasicPlatformDebug.hpp"
  #include "Common/interface/RefCntAutoPtr.hpp"
 #include "Common/interface/BasicMath.hpp"
+#include "ImGuiImplWin32.hpp"
+#include "imgui.h"
 
 #include <filameshio/MeshReader.h>
 #include <filameshio/filamesh.h>
@@ -294,7 +296,8 @@ void main(in  PSInput  PSIn,
                  return false;
                  break;
          }
- 
+		 const auto& SCDesc2 = m_pSwapChain->GetDesc();
+		 m_pImGui = ImGuiImplWin32::Create(ImGuiDiligentCreateInfo{ m_pDevice, SCDesc2 }, hWnd);
          return true;
      }
  
@@ -1403,8 +1406,6 @@ void main(in  PSInput  PSIn,
 		 }
 
 		 // Bind vertex and index buffers
-// 		 const Uint64 offsets[] = {0, 0, 0, 0};
-// 		 IBuffer* pBuffs[] = { m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer };
 		 const Uint64 offsets[] = { 0, 142280, 284560, 355700 };
 		 IBuffer* pBuffs[] = { m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer, m_CubeVertexBuffer };
 		 m_pImmediateContext->SetVertexBuffers(0, _countof(pBuffs), pBuffs, offsets, RESOURCE_STATE_TRANSITION_MODE_TRANSITION, SET_VERTEX_BUFFERS_FLAG_RESET);
@@ -1415,13 +1416,8 @@ void main(in  PSInput  PSIn,
 		 // Commit shader resources. RESOURCE_STATE_TRANSITION_MODE_TRANSITION mode
 		 // makes sure that resources are transitioned to required states.
 		 m_pImmediateContext->CommitShaderResources(m_SRB, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-// 		 m_pImmediateContext->CommitShaderResources(m_SRB_ssao, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-// 		 m_pImmediateContext->CommitShaderResources(m_SRB_iblDFG, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-// 		 m_pImmediateContext->CommitShaderResources(m_SRB_iblSpecular, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
 
 		 DrawIndexedAttribs DrawAttrs;     // This is an indexed draw call
-// 		 DrawAttrs.IndexType = VT_UINT32; // Index type
-// 		 DrawAttrs.NumIndices = 36;
 		 DrawAttrs.IndexType = VT_UINT16; // Index type
 		 DrawAttrs.NumIndices = 47232;
 		 // Verify the state of vertex and index buffers
@@ -1429,70 +1425,23 @@ void main(in  PSInput  PSIn,
 		 m_pImmediateContext->DrawIndexed(DrawAttrs);
 
 		 pCtx->SetRenderTargets(1, &pRTV, pDSV, RESOURCE_STATE_TRANSITION_MODE_TRANSITION);
-	 }
-
-	 float4x4 GetSurfacePretransformMatrix(const float3& f3CameraViewAxis) const
-	 {
-		 const auto& SCDesc = m_pSwapChain->GetDesc();
-		 switch (SCDesc.PreTransform)
+		 if (m_pImGui)
 		 {
-		 case SURFACE_TRANSFORM_ROTATE_90:
-			 // The image content is rotated 90 degrees clockwise.
-			 return float4x4::RotationArbitrary(f3CameraViewAxis, -PI_F / 2.f);
-
-		 case SURFACE_TRANSFORM_ROTATE_180:
-			 // The image content is rotated 180 degrees clockwise.
-			 return float4x4::RotationArbitrary(f3CameraViewAxis, -PI_F);
-
-		 case SURFACE_TRANSFORM_ROTATE_270:
-			 // The image content is rotated 270 degrees clockwise.
-			 return float4x4::RotationArbitrary(f3CameraViewAxis, -PI_F * 3.f / 2.f);
-
-		 case SURFACE_TRANSFORM_OPTIMAL:
-			 UNEXPECTED("SURFACE_TRANSFORM_OPTIMAL is only valid as parameter during swap chain initialization.");
-			 return float4x4::Identity();
-
-		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR:
-		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90:
-		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_180:
-		 case SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270:
-			 UNEXPECTED("Mirror transforms are not supported");
-			 return float4x4::Identity();
-
-		 default:
-			 return float4x4::Identity();
+			 if (true/*m_bShowUI*/)
+			 {
+				 // No need to call EndFrame as ImGui::Render calls it automatically
+				 m_pImGui->Render(pCtx);
+			 }
 		 }
 	 }
-	 float4x4 GetAdjustedProjectionMatrix(float FOV, float NearPlane, float FarPlane) const
-	 {
-		 const auto& SCDesc = m_pSwapChain->GetDesc();
 
-		 float AspectRatio = static_cast<float>(SCDesc.Width) / static_cast<float>(SCDesc.Height);
-		 float XScale, YScale;
-		 if (SCDesc.PreTransform == SURFACE_TRANSFORM_ROTATE_90 ||
-			 SCDesc.PreTransform == SURFACE_TRANSFORM_ROTATE_270 ||
-			 SCDesc.PreTransform == SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_90 ||
-			 SCDesc.PreTransform == SURFACE_TRANSFORM_HORIZONTAL_MIRROR_ROTATE_270)
-		 {
-			 // When the screen is rotated, vertical FOV becomes horizontal FOV
-			 XScale = 1.f / std::tan(FOV / 2.f);
-			 // Aspect ratio is inversed
-			 YScale = XScale * AspectRatio;
-		 }
-		 else
-		 {
-			 YScale = 1.f / std::tan(FOV / 2.f);
-			 XScale = YScale / AspectRatio;
-		 }
-
-		 float4x4 Proj;
-		 Proj._11 = XScale;
-		 Proj._22 = YScale;
-		 Proj.SetNearFarClipPlanes(NearPlane, FarPlane, m_pDevice->GetDeviceInfo().NDC.MinZ == -1);
-		 return Proj;
-	 }
 	 void Update(double CurrTime, double ElapsedTime, bool DoUpdateUI)
 	 {
+		 if (m_pImGui)
+		 {
+			 const SwapChainDesc& SCDesc = m_pSwapChain->GetDesc();
+			 m_pImGui->NewFrame(SCDesc.Width, SCDesc.Height, SCDesc.PreTransform);
+		 }
 		 //SampleBase::Update(CurrTime, ElapsedTime, DoUpdateUI);
 		 // get the timestamp as soon as possible
 		 //
@@ -1512,17 +1461,27 @@ void main(in  PSInput  PSIn,
 		 float4x4 CubeModelTransform = float4x4::RotationY(static_cast<float>(CurrTime) * 1.0f) * float4x4::RotationX(-PI_F * 0.1f);
 		 auto transform = filament::math::mat4f{ filament::math::mat3f(1), filament::math::float3(0, 0, -4) };
 		 g_ObjectMat = transform * filament::math::mat4f::rotation(CurrTime, filament::math::float3{ 0, 1, 0 });// (*(filament::math::mat4f*)&CubeModelTransform);
-		 // Camera is at (0, 0, -5) looking along the Z axis
-		 float4x4 View = float4x4::Translation(0.f, 0.0f, 5.0f);
 
-		 // Get pretransform matrix that rotates the scene according the surface orientation
-		 float4x4 SrfPreTransform = GetSurfacePretransformMatrix(float3{ 0, 0, 1 });
+		 {
+			 ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
 
-		 // Get projection matrix adjusted to the current screen orientation
-		 float4x4 Proj = GetAdjustedProjectionMatrix(PI_F / 4.0f, 0.1f, 100.f);
+			 ImGui::Text("This is some useful text.");          // Display some text (you can use a format strings too)
+			 //ImGui::Checkbox("Demo Window", &m_ShowDemoWindow); // Edit bools storing our window open/close state
+			 //ImGui::Checkbox("Another Window", &m_ShowAnotherWindow);
 
-		 // Compute world-view-projection matrix
-		 m_WorldViewProjMatrix = CubeModelTransform * View * SrfPreTransform * Proj;
+			 static float f = 0.0f;
+			 ImGui::SliderFloat("float", &f, 0.0f, 1.0f);             // Edit 1 float using a slider from 0.0f to 1.0f
+			 //ImGui::ColorEdit3("clear color", (float*)&m_ClearColor); // Edit 3 floats representing a color
+
+			 static int counter = 0;
+			 if (ImGui::Button("Button")) // Buttons return true when clicked (most widgets return true when edited/activated)
+				 counter++;
+			 ImGui::SameLine();
+			 ImGui::Text("counter = %d", counter);
+
+			 ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+			 ImGui::End();
+		 }
 	 }
 	  
      void Present()
@@ -1562,9 +1521,6 @@ void main(in  PSInput  PSIn,
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblDFG;
 	 RefCntAutoPtr<ITextureView>           m_TextureSRV_iblSpecular;
 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB;
-// 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_ssao;
-// 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblDFG;
-// 	 RefCntAutoPtr<IShaderResourceBinding> m_SRB_iblSpecular;
 	 float4x4                              m_WorldViewProjMatrix;
 	 bool m_ConvertPSOutputToGamma = false;
 	 bool m_filament_ready = false;
@@ -1575,6 +1531,7 @@ void main(in  PSInput  PSIn,
 	 std::string mPSSource;
 	 std::vector<uint32_t> mVSSourceVK;
 	 std::vector<uint32_t> mPSSourceVK;
+	 std::unique_ptr<ImGuiImplDiligent> m_pImGui;
  };
  
  std::unique_ptr<Tutorial00App> g_pTheApp;

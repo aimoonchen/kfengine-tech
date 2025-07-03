@@ -267,7 +267,7 @@ public:
     utils::FixedCapacityVector<backend::ShaderLanguage> getShaderLanguage() const noexcept {
         switch (mBackend) {
             default:
-                return { /*backend::ShaderLanguage::ESSL3*/backend::ShaderLanguage::SPIRV/*getDriver().getShaderLanguage()*/ };
+                return { backend::ShaderLanguage::ESSL3/*backend::ShaderLanguage::SPIRV*//*getDriver().getShaderLanguage()*/ };
             case Backend::METAL:
                 const auto& lang = mConfig.preferredShaderLanguage;
                 if (lang == Config::ShaderLanguage::MSL) {
@@ -544,7 +544,7 @@ private:
     backend::Driver* mDriver = nullptr;
     backend::Handle<backend::HwRenderTarget> mDefaultRenderTarget;
 
-    Backend mBackend = Backend::VULKAN;// Backend::OPENGL;//
+    Backend mBackend = Backend::OPENGL;//Backend::VULKAN;// 
     FeatureLevel mActiveFeatureLevel = FeatureLevel::FEATURE_LEVEL_2;
     Platform* mPlatform = nullptr;
     bool mOwnPlatform = false;
