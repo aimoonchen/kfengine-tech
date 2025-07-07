@@ -19,6 +19,7 @@
 #include <details/VertexBuffer.h>
 #include <details/Material.h>
 #include <details/IndirectLight.h>
+#include "details/Skybox.h"
 #include <components/LightManager.h>
 #include <backend/DriverEnums.h>
 #include <private/backend/Driver.h>
@@ -155,6 +156,10 @@ FMaterialInstance* FEngine::createMaterialInstance(const FMaterial* material,
 		pos.first->second.insert(p);
 	}
 	return p;
+}
+
+FSkybox* FEngine::createSkybox(const Skybox::Builder& builder) noexcept {
+	return create(mSkyboxes, builder);
 }
 
 size_t backend::Driver::getElementTypeSize(backend::ElementType type) noexcept {

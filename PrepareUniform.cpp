@@ -14,23 +14,9 @@
 #include "ds/ColorPassDescriptorSet.h"
 #include "filament/Exposure.h"
 #include <camutils/Manipulator.h>
-struct Config {
-	std::string title;
-	std::string iblDirectory;
-	std::string dirt;
-	float scale = 1.0f;
-	bool splitView = false;
-	mutable filament::Engine::Backend backend = filament::Engine::Backend::DEFAULT;
-	mutable filament::backend::FeatureLevel featureLevel = filament::backend::FeatureLevel::FEATURE_LEVEL_3;
-	filament::camutils::Mode cameraMode = filament::camutils::Mode::ORBIT;
-	bool resizeable = true;
-	bool headless = false;
-	int stereoscopicEyeCount = 2;
+#include <filamentapp/Config.h>
 
-	// Provided to indicate GPU preference for vulkan
-	std::string vulkanGPUHint;
-};
-
+extern filament::Camera* g_sandbox_camera;
 filament::FEngine* g_FilamentEngine = nullptr;
 filament::ColorPassDescriptorSet* g_mColorPassDescriptorSet = nullptr;
 filament::math::mat4f g_ObjectMat;
@@ -59,7 +45,7 @@ public:
         mCameras[0] = mMainCamera = engine.createCamera({}/*mCameraEntities[0]*/);
         mCameras[1] = mDebugCamera = engine.createCamera({}/*mCameraEntities[1]*/);
         mCameras[2] = mOrthoCamera = engine.createCamera({}/*mCameraEntities[2]*/);
-
+        g_sandbox_camera = mMainCamera;
 		// set exposure
 		for (auto camera : mCameras) {
 			camera->setExposure(16.0f, 1 / 125.0f, 100.0f);

@@ -18,7 +18,6 @@
 #include <string>
 #include <map>
 #include <vector>
-
 //#include <getopt/getopt.h>
 
 #include <imgui.h>
@@ -48,23 +47,27 @@
 #include <math/vec4.h>
 #include <math/norm.h>
 
-// #include <filamentapp/Config.h>
-// #include <filamentapp/IBL.h>
+#include <filamentapp/Config.h>
+#include <filamentapp/IBL.h>
 // #include <filamentapp/FilamentApp.h>
 // #include <filamentapp/MeshAssimp.h>
+#include <details/Engine.h>
 
 #include "material_sandbox.h"
 
+#define M_PI_2     1.57079632679489661923   // pi/2
+#define M_PI_4     0.785398163397448309616  // pi/4
+
 using namespace filament::math;
 using namespace filament;
-using namespace filamat;
+//using namespace filamat;
 using namespace utils;
 
 static std::vector<Path> g_filenames;
 
 static Scene* g_scene = nullptr;
 
-std::unique_ptr<MeshAssimp> g_meshSet;
+//std::unique_ptr<MeshAssimp> g_meshSet;
 static std::map<std::string, MaterialInstance*> g_meshMaterialInstances;
 static SandboxParameters g_params;
 // static ColorGradingOptions g_lastColorGradingOptions;
@@ -193,6 +196,11 @@ static int handleCommandLineArgments(int argc, char* argv[], Config* config) {
     return optind;
 }
 */
+extern filament::FEngine* g_FilamentEngine;
+static IBL* getIBL() {
+    static IBL ibl(*g_FilamentEngine);
+    return &ibl;
+}
 static void cleanup(Engine* engine, View*, Scene*) {
     for (const auto& material : g_meshMaterialInstances) {
         engine->destroy(material.second);
@@ -206,7 +214,7 @@ static void cleanup(Engine* engine, View*, Scene*) {
         engine->destroy(i);
     }
 
-    g_meshSet.reset(nullptr);
+    //g_meshSet.reset(nullptr);
 
     engine->destroy(g_params.light);
     engine->destroy(g_params.spotLight);
@@ -220,10 +228,10 @@ static void cleanup(Engine* engine, View*, Scene*) {
 static void setup(Engine* engine, View*, Scene* scene) {
     g_scene = scene;
 
-    g_meshSet = std::make_unique<MeshAssimp>(*engine);
+    //g_meshSet = std::make_unique<MeshAssimp>(*engine);
 
     createInstances(g_params, *engine);
-
+    /*
     for (auto& filename : g_filenames) {
         g_meshSet->addFromFile(filename, g_meshMaterialInstances);
     }
@@ -260,8 +268,9 @@ static void setup(Engine* engine, View*, Scene* scene) {
 
     // Parent the spot light to the root renderable in the mesh.
     tcm.create(g_params.spotLight, tcm.getInstance(g_meshSet->getRenderables()[0]));
+    */
     g_params.spotLightPosition = float3{0.0, 1.0, 0.0f};
-
+    /*
     if (g_shadowPlane) {
         EntityManager& em = EntityManager::get();
         Material* shadowMaterial = Material::Builder()
@@ -328,8 +337,8 @@ static void setup(Engine* engine, View*, Scene* scene) {
         tcm.setTransform(tcm.getInstance(planeRenderable),
                 filament::math::mat4f::translation(float3{ 0, -1, -4 }));
     }
-
-    auto* ibl = FilamentApp::get().getIBL();
+    */
+    auto* ibl = /*FilamentApp::get().*/getIBL();
     if (ibl) {
         auto& params = g_params;
         IndirectLight* const pIndirectLight = ibl->getIndirectLight();
@@ -345,7 +354,7 @@ static void setup(Engine* engine, View*, Scene* scene) {
         }
     }
 
-    g_params.bloomOptions.dirt = FilamentApp::get().getDirtTexture();
+    //g_params.bloomOptions.dirt = FilamentApp::get().getDirtTexture();
 }
 
 static filament::MaterialInstance* updateInstances(
@@ -433,7 +442,7 @@ static filament::MaterialInstance* updateInstances(
 
     return materialInstance;
 }
-
+/*
 static void computeRangePlot(SandboxParameters &parameters) {
     float4& ranges = parameters.colorGradingOptions.ranges;
     ranges.y = clamp(ranges.y, ranges.x + 1e-5f, ranges.w - 1e-5f); // darks
@@ -448,7 +457,7 @@ static void computeRangePlot(SandboxParameters &parameters) {
         g_rangePlot[2048 + i] = h;
     }
 }
-
+*/
 static void rangePlotSeriesStart(int series) {
     switch (series) {
         case 0:
@@ -610,8 +619,8 @@ static void gui(filament::Engine* engine, filament::View*) {
             ImGui::SliderFloat("Far", &params.cameraFar, 1.0f, 10000.0f);
             ImGui::Unindent();
 
-            FilamentApp::get().setCameraFocalLength(params.cameraFocalLength);
-            FilamentApp::get().setCameraNearFar(params.cameraNear, params.cameraFar);
+//             FilamentApp::get().setCameraFocalLength(params.cameraFocalLength);
+//             FilamentApp::get().setCameraNearFar(params.cameraNear, params.cameraFar);
         }
 
         if (ImGui::CollapsingHeader("Indirect Light")) {
@@ -621,7 +630,7 @@ static void gui(filament::Engine* engine, filament::View*) {
             if (ImGui::CollapsingHeader("SSAO")) {
                 int quality = (int)params.ssaoOptions.quality;
                 int lowpass = (int)params.ssaoOptions.lowPassFilter;
-                bool upsampling = params.ssaoOptions.upsampling != View::QualityLevel::LOW;
+                bool upsampling = params.ssaoOptions.upsampling != filament::QualityLevel::LOW;
                 DebugRegistry& debug = engine->getDebugRegistry();
                 ImGui::Checkbox("Enabled##ssao", &params.ssaoOptions.enabled);
                 ImGui::SliderFloat("Radius", &params.ssaoOptions.radius, 0.05f, 5.0f);
@@ -645,9 +654,9 @@ static void gui(filament::Engine* engine, filament::View*) {
 //                ImGui::SliderFloat("stddev",
 //                        debug.getPropertyAddress<float>("d.ssao.stddev"), 0.0f, 8.0f);
 
-                params.ssaoOptions.upsampling = upsampling ? View::QualityLevel::HIGH : View::QualityLevel::LOW;
-                params.ssaoOptions.quality = (View::QualityLevel)quality;
-                params.ssaoOptions.lowPassFilter = (View::QualityLevel)lowpass;
+                params.ssaoOptions.upsampling = upsampling ? filament::QualityLevel::HIGH : filament::QualityLevel::LOW;
+                params.ssaoOptions.quality = (filament::QualityLevel)quality;
+                params.ssaoOptions.lowPassFilter = (filament::QualityLevel)lowpass;
                 if (ImGui::CollapsingHeader("Dominant Light Shadows")) {
                     int sampleCount = params.ssaoOptions.ssct.sampleCount;
                     int rayCount = params.ssaoOptions.ssct.rayCount;
@@ -660,7 +669,7 @@ static void gui(filament::Engine* engine, filament::View*) {
                     ImGui::SliderFloat("Depth slope bias", &params.ssaoOptions.ssct.depthSlopeBias, 0.0f, 1.0f);
                     ImGui::SliderInt("Sample Count", &sampleCount, 1, 32);
                     ImGui::SliderInt("Ray Count", &rayCount, 1, 8);
-                    ImGuiExt::DirectionWidget("Direction##dls", params.ssaoOptions.ssct.lightDirection.v);
+                    //ImGuiExt::DirectionWidget("Direction##dls", params.ssaoOptions.ssct.lightDirection.v);
                     params.ssaoOptions.ssct.sampleCount = sampleCount;
                     params.ssaoOptions.ssct.rayCount = rayCount;
                 }
@@ -676,7 +685,7 @@ static void gui(filament::Engine* engine, filament::View*) {
             ImGui::SliderFloat("Sun size", &params.sunAngularRadius, 0.1f, 10.0f);
             ImGui::SliderFloat("Halo size", &params.sunHaloSize, 1.01f, 40.0f);
             ImGui::SliderFloat("Halo falloff", &params.sunHaloFalloff, 0.0f, 2048.0f);
-            ImGuiExt::DirectionWidget("Direction", params.lightDirection.v);
+            //ImGuiExt::DirectionWidget("Direction", params.lightDirection.v);
             if (ImGui::CollapsingHeader("Contact Shadows")) {
                 ImGui::Checkbox("Enabled##contactShadows", &params.screenSpaceContactShadows);
                 ImGui::SliderInt("Steps", &params.stepCount, 0, 255);
@@ -911,29 +920,29 @@ static void gui(filament::Engine* engine, filament::View*) {
 
     MaterialInstance* materialInstance = updateInstances(params, *engine);
 
-    auto& rcm = engine->getRenderableManager();
-    size_t count = 0;
-    for (auto renderable : g_meshSet->getRenderables()) {
-        auto instance = rcm.getInstance(renderable);
-        if (!instance) continue;
-        if (!g_singleMode || count == 0) {
-            for (size_t i = 0; i < rcm.getPrimitiveCount(instance); i++) {
-                rcm.setMaterialInstanceAt(instance, i, materialInstance);
-            }
-        }
-        count++;
-        rcm.setCastShadows(instance, params.castShadows);
-    }
+//     auto& rcm = engine->getRenderableManager();
+//     size_t count = 0;
+//     for (auto renderable : g_meshSet->getRenderables()) {
+//         auto instance = rcm.getInstance(renderable);
+//         if (!instance) continue;
+//         if (!g_singleMode || count == 0) {
+//             for (size_t i = 0; i < rcm.getPrimitiveCount(instance); i++) {
+//                 rcm.setMaterialInstanceAt(instance, i, materialInstance);
+//             }
+//         }
+//         count++;
+//         rcm.setCastShadows(instance, params.castShadows);
+//     }
 
     if (params.directionalLightEnabled && !params.hasDirectionalLight) {
-        g_scene->addEntity(params.light);
+ //       g_scene->addEntity(params.light);
         params.hasDirectionalLight = true;
     } else if (!params.directionalLightEnabled && params.hasDirectionalLight) {
-        g_scene->remove(params.light);
+//        g_scene->remove(params.light);
         params.hasDirectionalLight = false;
     }
 
-    auto* ibl = FilamentApp::get().getIBL();
+    auto* ibl = /*FilamentApp::get().*/getIBL();
     if (ibl) {
         ibl->getIndirectLight()->setIntensity(params.iblIntensity);
         ibl->getIndirectLight()->setRotation(
@@ -962,25 +971,26 @@ static void gui(filament::Engine* engine, filament::View*) {
     lcm.setShadowOptions(lightInstance, options);
 
     if (params.spotLightEnabled && !params.hasSpotLight) {
-        g_scene->addEntity(params.spotLight);
+//        g_scene->addEntity(params.spotLight);
         params.hasSpotLight = true;
     } else if (!params.spotLightEnabled && params.hasSpotLight) {
-        g_scene->remove(params.spotLight);
+//        g_scene->remove(params.spotLight);
         params.hasSpotLight = false;
     }
     auto spotLightInstance = lcm.getInstance(params.spotLight);
     auto& tcm = engine->getTransformManager();
-    tcm.setTransform(tcm.getInstance(params.spotLight),
-            mat4f::translation(params.spotLightPosition));
+//     tcm.setTransform(tcm.getInstance(params.spotLight),
+//             mat4f::translation(params.spotLightPosition));
     lcm.setColor(spotLightInstance, params.spotLightColor);
     lcm.setShadowCaster(spotLightInstance, params.spotLightCastShadows);
     lcm.setIntensity(spotLightInstance, params.spotLightIntensity);
     lcm.setSpotLightCone(spotLightInstance, params.spotLightConeAngle * params.spotLightConeFade,
             params.spotLightConeAngle);
 }
-
+Camera* g_sandbox_camera = nullptr;
 static void preRender(filament::Engine* engine, filament::View* view, filament::Scene*,
         filament::Renderer* renderer) {
+    /*
     view->setAntiAliasing(g_params.fxaa ? AntiAliasing::FXAA : AntiAliasing::NONE);
     view->setDithering(g_params.dithering ? Dithering::TEMPORAL : Dithering::NONE);
     view->setBloomOptions(g_params.bloomOptions);
@@ -991,6 +1001,7 @@ static void preRender(filament::Engine* engine, filament::View* view, filament::
     view->setSampleCount((uint8_t) (g_params.msaa ? 4 : 1));
 #pragma clang diagnostic pop
     view->setAmbientOcclusionOptions(g_params.ssaoOptions);
+    */
     /*
     if (g_params.colorGrading) {
         if (g_params.colorGradingOptions != g_lastColorGradingOptions) {
@@ -1029,6 +1040,7 @@ static void preRender(filament::Engine* engine, filament::View* view, filament::
         view->setColorGrading(nullptr);
     }
     */
+    /*
     // Without an IBL, we must clear the swapchain to black before each frame.
     renderer->setClearOptions({
             .clearColor = { 0.0f, 0.0f, 0.0f, 1.0f },
@@ -1036,6 +1048,8 @@ static void preRender(filament::Engine* engine, filament::View* view, filament::
 
     Camera& camera = view->getCamera();
     camera.setExposure(g_params.cameraAperture, 1.0f / g_params.cameraSpeed, g_params.cameraISO);
+    */
+    g_sandbox_camera->setExposure(g_params.cameraAperture, 1.0f / g_params.cameraSpeed, g_params.cameraISO);
 }
 /*
 int main(int argc, char* argv[]) {

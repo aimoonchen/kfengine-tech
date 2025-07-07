@@ -43,7 +43,7 @@
 // #include "details/RenderTarget.h"
 // #include "details/SkinningBuffer.h"
 // #include "details/MorphTargetBuffer.h"
-// #include "details/Skybox.h"
+#include "details/Skybox.h"
 // 
 // #include "private/backend/CommandBufferQueue.h"
 #include "private/backend/CommandStream.h"
@@ -56,7 +56,7 @@
 #include <filament/Engine.h>
 #include <filament/IndirectLight.h>
 #include <filament/Material.h>
-// #include <filament/Skybox.h>
+#include <filament/Skybox.h>
 // #include <filament/Stream.h>
 #include <filament/Texture.h>
 #include <filament/VertexBuffer.h>
@@ -309,7 +309,7 @@ public:
     FIndirectLight* createIndirectLight(const IndirectLight::Builder& builder) noexcept;
     FMaterial* createMaterial(const Material::Builder& builder, std::unique_ptr<MaterialParser> materialParser) noexcept;
 //     FTexture* createTexture(const Texture::Builder& builder) noexcept;
-//     FSkybox* createSkybox(const Skybox::Builder& builder) noexcept;
+    FSkybox* createSkybox(const Skybox::Builder& builder) noexcept;
 //     FColorGrading* createColorGrading(const ColorGrading::Builder& builder) noexcept;
 //     FStream* createStream(const Stream::Builder& builder) noexcept;
 //     FRenderTarget* createRenderTarget(const RenderTarget::Builder& builder) noexcept;
@@ -583,7 +583,7 @@ private:
     ResourceList<FIndirectLight> mIndirectLights{ "IndirectLight" };
     ResourceList<FMaterial> mMaterials{ "Material" };
 //     ResourceList<FTexture> mTextures{ "Texture" };
-//     ResourceList<FSkybox> mSkyboxes{ "Skybox" };
+    ResourceList<FSkybox> mSkyboxes{ "Skybox" };
 //     ResourceList<FColorGrading> mColorGradings{ "ColorGrading" };
 //     ResourceList<FRenderTarget> mRenderTargets{ "RenderTarget" };
 
