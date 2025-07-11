@@ -162,6 +162,15 @@ FSkybox* FEngine::createSkybox(const Skybox::Builder& builder) noexcept {
 	return create(mSkyboxes, builder);
 }
 
+const FMaterial* FEngine::getSkyboxMaterial() const noexcept {
+	FMaterial const* material = mSkyboxMaterial;
+	if (UTILS_UNLIKELY(material == nullptr)) {
+		material = FSkybox::createMaterial(*const_cast<FEngine*>(this));
+		mSkyboxMaterial = material;
+	}
+	return material;
+}
+
 size_t backend::Driver::getElementTypeSize(backend::ElementType type) noexcept {
 	switch (type) {
 	case backend::ElementType::BYTE:     return sizeof(int8_t);

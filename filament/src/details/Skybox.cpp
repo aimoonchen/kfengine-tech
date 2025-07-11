@@ -109,7 +109,7 @@ FSkybox::FSkybox(FEngine& engine, const Builder& builder) noexcept
     pInstance->setParameter("constantColor", mSkyboxTexture == nullptr);
     pInstance->setParameter("color", builder->mColor);
 
-    mSkybox = engine.getEntityManager().create();
+//    mSkybox = engine.getEntityManager().create();
 
 //     RenderableManager::Builder(1)
 //             .geometry(0, RenderableManager::PrimitiveType::TRIANGLES,
@@ -152,11 +152,11 @@ FMaterial const* FSkybox::createMaterial(FEngine& engine) {
 
 void FSkybox::terminate(FEngine& engine) noexcept {
     // use Engine::destroy because FEngine::destroy is inlined
-    Engine& e = engine;
-    e.destroy(mSkybox);
-    e.destroy(mSkyboxMaterialInstance);
-
-    engine.getEntityManager().destroy(mSkybox);
+//     Engine& e = engine;
+//     e.destroy(mSkybox);
+//     e.destroy(mSkyboxMaterialInstance);
+// 
+//     engine.getEntityManager().destroy(mSkybox);
 
     mSkybox = {};
     mSkyboxMaterialInstance = nullptr;
